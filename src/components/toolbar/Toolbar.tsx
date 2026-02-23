@@ -1,11 +1,13 @@
 // ─── Toolbar ───────────────────────────────────────────────────────────────
-// Top bar: title + Run / Reset controls (Step comes in Phase 3).
+// Top bar: title + Run / Reset controls.
 
-import { Play, Square, RotateCcw } from 'lucide-react';
+import { Play, RotateCcw } from 'lucide-react';
 import { useEvaluationStore } from '../../store/evaluationStore';
+import { useEvaluation }      from '../../hooks/useEvaluation';
 
 export function Toolbar() {
   const { isRunning, reset } = useEvaluationStore();
+  const { runAll } = useEvaluation();
 
   return (
     <div className="flex items-center gap-3 px-4 py-2 bg-slate-900 border-b border-slate-700 select-none">
@@ -15,15 +17,16 @@ export function Toolbar() {
         <span className="text-slate-500 text-xs">visual Haskell</span>
       </div>
 
-      {/* Run button — wired up fully in Phase 3; placeholder callback for now */}
+      {/* Run */}
       <button
         title="Run (evaluate all outputs)"
+        onClick={runAll}
         disabled={isRunning}
         className="flex items-center gap-1.5 px-3 py-1 rounded bg-emerald-700 hover:bg-emerald-600
                    disabled:opacity-50 text-white text-xs font-medium transition-colors"
       >
         <Play size={12} />
-        Run
+        {isRunning ? 'Running…' : 'Run'}
       </button>
 
       {/* Reset */}
@@ -40,7 +43,7 @@ export function Toolbar() {
       <div className="flex-1" />
 
       <span className="text-slate-600 text-xs">
-        Phase 1 — live type inference
+        Phase 2 — evaluation engine
       </span>
     </div>
   );
