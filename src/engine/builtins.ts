@@ -240,4 +240,20 @@ export const builtins: Record<string, HaskellValue> = {
       return a.value <= b.value ? a : b;
     });
   }),
+
+  // range n = [1..n]
+  'range': VFun(n => {
+    if (n.tag !== 'VInt') return VError('range: expected Int');
+    if (n.value < 0)  return VError('range: negative n');
+    if (n.value > 100_000) return VError('range: n too large (max 100000)');
+    const elems = Array.from({ length: n.value }, (_, i) => VInt(i + 1));
+    return VList(elems);
+  }),
+
+  // zip xs ys = [(x,y)...]  — represented as [[x,y],...] since we have no tuple node yet
+  'zip': VFun(xs => VFun(ys => {
+    if (xs.tag !== 'VList' || ys.tag !== 'VList') return VError('zip: both args must be lists');
+    const len = Math.min(xs.elements.length, ys.elements.length);
+    return VList(Array.from({ length: len }, (_, i) => VList([xs.elements[i], ys.elements[i]])));
+  })),
 };

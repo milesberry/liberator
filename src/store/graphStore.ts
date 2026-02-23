@@ -36,6 +36,8 @@ interface GraphState {
   addNode: (def: NodeDefinition, position: XYPosition) => void;
   removeNode: (id: string) => void;
   updateNodeData: (id: string, updater: (data: LibNode['data']) => void) => void;
+  loadGraph: (nodes: LibNode[], edges: LibEdge[]) => void;
+  clearGraph: () => void;
 }
 
 export const useGraphStore = create<GraphState>()(
@@ -103,6 +105,20 @@ export const useGraphStore = create<GraphState>()(
       set((state) => {
         const node = state.nodes.find(n => n.id === id);
         if (node) updater(node.data);
+      });
+    },
+
+    loadGraph: (nodes, edges) => {
+      set((state) => {
+        state.nodes = nodes as LibNode[];
+        state.edges = edges as LibEdge[];
+      });
+    },
+
+    clearGraph: () => {
+      set((state) => {
+        state.nodes = [];
+        state.edges = [];
       });
     },
   }))

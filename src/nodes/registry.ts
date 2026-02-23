@@ -18,6 +18,7 @@ export type PaletteCategory =
   | 'logic'
   | 'lists'
   | 'higher-order'
+  | 'utilities'
   | 'control'
   | 'io'
   | 'modules';
@@ -309,6 +310,54 @@ const hofNodes: NodeDefinition[] = [
   }),
 ];
 
+// ─── Utility nodes (list aggregates + range) ──────────────────────────────
+// These wrap builtins that take a single list and return a scalar/list.
+
+type UtilOp = 'sum' | 'product' | 'maximum' | 'minimum' | 'range';
+
+function utilNode(op: UtilOp, label: string, desc: string, makePorts: (id: string) => Port[]): NodeDefinition {
+  return {
+    kind: 'listop', subtype: op, label, category: 'utilities', description: desc,
+    makeData: (id) => ({ kind: 'listop', op: op as ListOp, ports: makePorts(id) }),
+  };
+}
+
+const utilityNodes: NodeDefinition[] = [
+  utilNode('sum', 'sum', 'sum :: Num a => [a] → a', () =>
+    [inp('list', 'xs', TList(TInt)), out('result', 'result', TInt)]),
+  utilNode('product', 'product', 'product :: Num a => [a] → a', () =>
+    [inp('list', 'xs', TList(TInt)), out('result', 'result', TInt)]),
+  utilNode('maximum', 'maximum', 'maximum :: Ord a => [a] → a', (id) => {
+    const a = freshVar('a', id);
+    return [inp('list', 'xs', TList(a)), out('result', 'result', a)];
+  }),
+  utilNode('minimum', 'minimum', 'minimum :: Ord a => [a] → a', (id) => {
+    const a = freshVar('a', id);
+    return [inp('list', 'xs', TList(a)), out('result', 'result', a)];
+  }),
+  // range n  ≡  [1..n]  (1-based, inclusive)
+  {
+    kind: 'listop', subtype: 'range', label: 'range [1..n]', category: 'utilities',
+    description: 'range n = [1,2,...,n] :: Int → [Int]',
+    makeData: () => ({
+      kind: 'listop', op: 'range' as ListOp,
+      ports: [inp('n', 'n', TInt), out('result', 'result', TList(TInt))],
+    }),
+  },
+  // zip
+  {
+    kind: 'listop', subtype: 'zip', label: 'zip', category: 'utilities',
+    description: 'zip :: [a] → [b] → [(a,b)]',
+    makeData: (id) => {
+      const a = freshVar('a', id), b = freshVar('b', id);
+      return {
+        kind: 'listop', op: 'zip' as ListOp,
+        ports: [inp('list0', 'xs', TList(a)), inp('list1', 'ys', TList(b)), out('result', 'result', TList(TUnknown))],
+      };
+    },
+  },
+];
+
 // ─── Control nodes ─────────────────────────────────────────────────────────
 
 const controlNodes: NodeDefinition[] = [
@@ -384,6 +433,7 @@ export const NODE_REGISTRY: NodeDefinition[] = [
   ...logicNodes,
   ...listNodes,
   ...hofNodes,
+  ...utilityNodes,
   ...controlNodes,
   ...ioNodes,
 ];
@@ -424,6 +474,7 @@ export const CATEGORY_LABELS: Record<PaletteCategory, string> = {
   logic:          'Logic',
   lists:          'Lists',
   'higher-order': 'Higher-Order',
+  utilities:      'Utilities',
   control:        'Control',
   io:             'Input / Output',
   modules:        'Modules',
