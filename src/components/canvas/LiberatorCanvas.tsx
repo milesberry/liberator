@@ -3,10 +3,12 @@
 // IMPORTANT: nodeTypes and edgeTypes must be defined at module level (not inside
 // the component) to avoid React Flow re-rendering every node on every render.
 
-import { useCallback, useMemo } from 'react';
-import ReactFlow, {
+import { useCallback } from 'react';
+import {
+  ReactFlow, ReactFlowProvider,
   Background, Controls, MiniMap,
   BackgroundVariant,
+  useReactFlow,
   type NodeTypes, type EdgeTypes,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
@@ -41,11 +43,12 @@ const EDGE_TYPES: EdgeTypes = {
   lib: WireEdge as any,
 };
 
-export function LiberatorCanvas() {
+// ─── Inner canvas — has access to ReactFlow context (useReactFlow) ─────────
+function CanvasInner() {
   const { nodes, edges, onNodesChange, onEdgesChange, onConnect, addNode } = useGraphStore();
   const { setSelectedNodeId } = useUIStore();
+  const { screenToFlowPosition } = useReactFlow();
 
-  // Handle drop from palette
   const onDrop = useCallback((event: React.DragEvent<HTMLDivElement>) => {
     event.preventDefault();
     const kind    = event.dataTransfer.getData('application/liberator-kind');
@@ -55,14 +58,10 @@ export function LiberatorCanvas() {
     const def = findDefinition(kind, subtype);
     if (!def) return;
 
-    // Convert screen position to flow position
-    const canvas = event.currentTarget.getBoundingClientRect();
-    const position = {
-      x: event.clientX - canvas.left,
-      y: event.clientY - canvas.top,
-    };
+    // Correctly maps screen coords → canvas coords (respects pan + zoom)
+    const position = screenToFlowPosition({ x: event.clientX, y: event.clientY });
     addNode(def, position);
-  }, [addNode]);
+  }, [addNode, screenToFlowPosition]);
 
   const onDragOver = useCallback((event: React.DragEvent<HTMLDivElement>) => {
     event.preventDefault();
@@ -97,5 +96,14 @@ export function LiberatorCanvas() {
         />
       </ReactFlow>
     </div>
+  );
+}
+
+// ─── Outer wrapper — provides the ReactFlow context ───────────────────────
+export function LiberatorCanvas() {
+  return (
+    <ReactFlowProvider>
+      <CanvasInner />
+    </ReactFlowProvider>
   );
 }

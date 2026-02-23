@@ -40,7 +40,7 @@ export function Toolbar() {
       <div className="flex-1" />
 
       <span className="text-slate-600 text-xs">
-        Phase 0 — canvas ready
+        Phase 1 — live type inference
       </span>
     </div>
   );
