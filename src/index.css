@@ -1,0 +1,27 @@
+@import "tailwindcss";
+
+@layer base {
+  /* Wire / port type colours as CSS custom properties */
+  :root {
+    --color-wire-int:     #3b82f6; /* blue */
+    --color-wire-float:   #60a5fa; /* light blue */
+    --color-wire-bool:    #22c55e; /* green */
+    --color-wire-list:    #a855f7; /* purple */
+    --color-wire-fun:     #f97316; /* orange */
+    --color-wire-string:  #eab308; /* yellow */
+    --color-wire-unknown: #6b7280; /* grey */
+    --color-wire-error:   #ef4444; /* red */
+
+    font-family: system-ui, Helvetica, Arial, sans-serif;
+    font-synthesis: none;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* React Flow needs full height on the mounting elements */
+  html, body, #root {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+  }
+}
