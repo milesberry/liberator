@@ -4,6 +4,7 @@
 
 import type { LibNode } from '../types/nodes';
 import type { LibEdge } from '../types/edges';
+import type { SubgraphState } from '../store/graphStore';
 
 const STORAGE_KEY = 'liberator-graph-v1';
 
@@ -13,15 +14,22 @@ export interface SavedGraph {
   savedAt: string;
   nodes: LibNode[];
   edges: LibEdge[];
+  subgraphs?: Record<string, SubgraphState>;
 }
 
-export function saveGraph(nodes: LibNode[], edges: LibEdge[], name = 'My program'): void {
+export function saveGraph(
+  nodes: LibNode[],
+  edges: LibEdge[],
+  subgraphs: Record<string, SubgraphState> = {},
+  name = 'My program'
+): void {
   const data: SavedGraph = {
     version: 1,
     name,
     savedAt: new Date().toISOString(),
     nodes,
     edges,
+    subgraphs,
   };
   localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
 }

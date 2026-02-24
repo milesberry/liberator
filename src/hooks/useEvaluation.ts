@@ -19,7 +19,8 @@ export function useEvaluation() {
     // Run asynchronously so the "running" state renders before we block
     setTimeout(() => {
       try {
-        const targets = buildOutputExprs(nodes, edges);
+        const { subgraphs } = useGraphStore.getState();
+        const targets = buildOutputExprs(nodes, edges, subgraphs);
         const results = targets.map(({ nodeId, label, expr }) => {
           const val = evaluate(expr);
           const isError = val.tag === 'VError';

@@ -363,14 +363,15 @@ const utilityNodes: NodeDefinition[] = [
 const controlNodes: NodeDefinition[] = [
   {
     kind: 'lambda', label: 'Lambda (λ)', category: 'control',
-    description: 'Creates an anonymous function: \\x -> body',
+    description: 'Creates an anonymous function \\x -> body. Connect param → to inner nodes; wire their result → body.',
     makeData: (id) => {
       const a = freshVar('a', id), b = freshVar('b', id);
       return {
         kind: 'lambda', paramName: 'x',
         ports: [
-          inp('body', 'body', b),
-          out('result', 'λ result', TFun(a, b)),
+          out('param',  'x →',      a),           // param output: the bound variable x
+          inp('body',   '→ result', b),           // body input: the result expression
+          out('result', 'λ',        TFun(a, b)), // result output: the whole λx.body
         ],
       };
     },
@@ -477,5 +478,5 @@ export const CATEGORY_LABELS: Record<PaletteCategory, string> = {
   utilities:      'Utilities',
   control:        'Control',
   io:             'Input / Output',
-  modules:        'Modules',
+  modules:        'Functions',
 };

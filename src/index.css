@@ -25,3 +25,16 @@
     padding: 0;
   }
 }
+
+/* Selected node highlight — white glow.
+   React Flow adds .selected to its own wrapper div; we target the first child
+   (our rendered node div) via box-shadow so it shows even with overflow:hidden. */
+.react-flow__node.selected > div {
+  box-shadow: 0 0 0 2px white, 0 0 10px 2px rgba(255, 255, 255, 0.2) !important;
+}
+
+/* Remove React Flow's default blue focus outline */
+.react-flow__node:focus,
+.react-flow__node:focus-visible {
+  outline: none !important;
+}

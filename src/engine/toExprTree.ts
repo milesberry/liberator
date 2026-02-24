@@ -2,21 +2,62 @@
 // Walks the node graph backwards from an OutputNode, building a lambda
 // calculus expression tree that the evaluator can reduce.
 
-import type { LibNode } from '../types/nodes';
+import type { LibNode, ModuleNodeData } from '../types/nodes';
 import type { LibEdge } from '../types/edges';
 import type { HaskellValue } from '../types/values';
 import { VInt, VFloat, VBool, VString, VList, VError } from '../types/values';
+import type { SubgraphState } from '../store/graphStore';
 
 // ─── Expression tree ───────────────────────────────────────────────────────
 
 export type ExprTree =
   | { tag: 'Lit';        value: HaskellValue }
   | { tag: 'Builtin';    name: string }
+  | { tag: 'Var';        name: string }
   | { tag: 'App';        fn: ExprTree; arg: ExprTree }
   | { tag: 'Lam';        param: string; body: ExprTree }
   | { tag: 'If';         cond: ExprTree; thenE: ExprTree; elseE: ExprTree }
   | { tag: 'PartialApp'; fn: ExprTree; args: Array<ExprTree | null> }
   | { tag: 'Err';        message: string };
+
+// ─── Build a section/partial-application expression ───────────────────────
+// Given a builtin name and a mixed array of connected (ExprTree) and
+// unconnected (null) argument slots, produce an ExprTree that is:
+//   • a fully-reduced App chain  — when all args are present
+//   • a Lam wrapping the nulls   — when some args are missing
+//
+// Example: args = [null, Lit(0)]  for  (==)
+//   → Lam("__p0", App(App(Builtin("=="), Var("__p0")), Lit(0)))
+//   which evaluates to  \x -> x == 0
+//
+// Example: args = [Lit(2), null]  for  (*)
+//   → Lam("__p1", App(App(Builtin("*"), Lit(2)), Var("__p1")))
+//   which evaluates to  \x -> 2 * x   (i.e.  (*2) )
+function buildPartialExpr(builtinName: string, args: Array<ExprTree | null>): ExprTree {
+  // Assign a fresh param name for each null slot
+  const params: string[] = args.map((a, i) => a === null ? `__p${i}` : '');
+
+  // Build the innermost application:  fn arg0 arg1 … argN
+  // where null slots use their Var placeholder
+  const fn: ExprTree = { tag: 'Builtin', name: builtinName };
+  const applied = args.reduce<ExprTree>((acc, arg, i) => ({
+    tag: 'App',
+    fn: acc,
+    arg: arg ?? { tag: 'Var', name: params[i] },
+  }), fn);
+
+  // Wrap in lambdas for each null slot (right-to-left so outermost = leftmost null)
+  const nullIndices = args
+    .map((a, i) => (a === null ? i : -1))
+    .filter(i => i >= 0)
+    .reverse();          // wrap innermost first
+
+  return nullIndices.reduce<ExprTree>((body, i) => ({
+    tag: 'Lam',
+    param: params[i],
+    body,
+  }), applied);
+}
 
 // ─── Parse a literal string → HaskellValue ────────────────────────────────
 
@@ -74,9 +115,10 @@ interface BuildCtx {
   // target port handle → the single edge arriving at that port
   edgeByTarget: Map<string, LibEdge>;
   visited: Set<string>;   // cycle detection
+  subgraphs: Record<string, SubgraphState>;   // for module node evaluation
 }
 
-function makeCtx(nodes: LibNode[], edges: LibEdge[]): BuildCtx {
+function makeCtx(nodes: LibNode[], edges: LibEdge[], subgraphs: Record<string, SubgraphState> = {}): BuildCtx {
   const nodeById = new Map(nodes.map(n => [n.id, n]));
   const edgesBySource = new Map<string, LibEdge[]>();
   const edgeByTarget  = new Map<string, LibEdge>();
@@ -90,7 +132,7 @@ function makeCtx(nodes: LibNode[], edges: LibEdge[]): BuildCtx {
     edgeByTarget.set(tgtKey, e);
   }
 
-  return { nodeById, edgesBySource, edgeByTarget, visited: new Set() };
+  return { nodeById, edgesBySource, edgeByTarget, visited: new Set(), subgraphs };
 }
 
 // Get the ExprTree wired into a given input port (by node id + port id)
@@ -98,18 +140,77 @@ function inputExpr(nodeId: string, portId: string, ctx: BuildCtx): ExprTree | nu
   const handleKey = `${nodeId}__${portId}`;
   const edge = ctx.edgeByTarget.get(handleKey);
   if (!edge) return null;
-  return buildExpr(edge.source, edge.sourceHandle?.split('__')[1] ?? 'result', ctx);
+  const srcPortId = edge.sourceHandle?.split('__')[1] ?? 'result';
+  return buildExprWithOverrides(edge.source, srcPortId, ctx);
+}
+
+// ─── Module evaluation helper ─────────────────────────────────────────────
+// Evaluates a module node by resolving its subgraph.
+// Input anchors (value nodes tagged with _modulePortId) are overridden with
+// the expressions connected to the module's input ports in the outer graph.
+// The result is the expression from the matching output anchor in the subgraph.
+
+function buildModuleExpr(
+  moduleNodeId: string,
+  md: ModuleNodeData,
+  requestedPortId: string,
+  ctx: BuildCtx
+): ExprTree {
+  const sub = ctx.subgraphs[md.subgraphId];
+  if (!sub) return { tag: 'Err', message: `Module "${md.name}": subgraph not found` };
+
+  // Build a sub-context from the inner subgraph
+  const subCtx = makeCtx(sub.nodes, sub.edges, ctx.subgraphs);
+
+  // For each input port, resolve the outer expression and patch the anchor node
+  // by replacing it in subCtx.nodeById with a synthetic "value" node.
+  for (const port of md.inputPorts) {
+    const outerExpr = inputExpr(moduleNodeId, port.id, { ...ctx, visited: new Set(ctx.visited) });
+    if (!outerExpr) continue;
+
+    // Find anchor: a value node inside subgraph with _modulePortId === port.id
+    const anchor = sub.nodes.find(n =>
+      n.data.kind === 'value' && (n.data as any)._modulePortId === port.id
+    );
+    if (!anchor) continue;
+
+    // Replace the anchor in subCtx.nodeById with a synthetic Lit-producing node.
+    // We do this by injecting a special '_override' kind that we handle below.
+    // Actually simpler: store the override in a side-map on subCtx.
+    (subCtx as any)._overrides = (subCtx as any)._overrides ?? new Map<string, ExprTree>();
+    (subCtx as any)._overrides.set(anchor.id, outerExpr);
+  }
+
+  // Find the output anchor matching requestedPortId (or the first output if unspecified)
+  const outputAnchor =
+    sub.nodes.find(n => n.data.kind === 'output' && (n.data as any)._modulePortId === requestedPortId)
+    ?? sub.nodes.find(n => n.data.kind === 'output');
+
+  if (!outputAnchor) return { tag: 'Err', message: `Module "${md.name}": no output node` };
+  return buildExprWithOverrides(outputAnchor.id, 'value', subCtx);
+}
+
+// Variant of buildExpr that checks _overrides first
+function buildExprWithOverrides(nodeId: string, portId: string, ctx: BuildCtx): ExprTree {
+  const overrides: Map<string, ExprTree> | undefined = (ctx as any)._overrides;
+  if (overrides?.has(nodeId)) return overrides.get(nodeId)!;
+  return buildExpr(nodeId, portId, ctx);
 }
 
 // ─── Main builder ─────────────────────────────────────────────────────────
 
-function buildExpr(nodeId: string, _portId: string, ctx: BuildCtx): ExprTree {
-  // Cycle guard
-  if (ctx.visited.has(nodeId)) return { tag: 'Err', message: `Cycle detected at node ${nodeId}` };
-  ctx.visited.add(nodeId);
-
+function buildExpr(nodeId: string, portId: string, ctx: BuildCtx): ExprTree {
   const node = ctx.nodeById.get(nodeId);
   if (!node) return { tag: 'Err', message: `Unknown node: ${nodeId}` };
+
+  // Lambda param port: return the bound Var immediately (not a cycle, not the full lambda)
+  if (node.data.kind === 'lambda' && portId === 'param') {
+    return { tag: 'Var', name: node.data.paramName };
+  }
+
+  // Cycle guard (only for non-param ports)
+  if (ctx.visited.has(nodeId)) return { tag: 'Err', message: `Cycle detected at node ${nodeId}` };
+  ctx.visited.add(nodeId);
 
   const d = node.data;
   let result: ExprTree;
@@ -126,14 +227,7 @@ function buildExpr(nodeId: string, _portId: string, ctx: BuildCtx): ExprTree {
       const args: Array<ExprTree | null> = inputPorts.map(p =>
         inputExpr(nodeId, p.id, { ...ctx, visited: new Set(ctx.visited) })
       );
-      const fn: ExprTree = { tag: 'Builtin', name: d.op };
-      // All connected: fully apply
-      if (args.every(a => a !== null)) {
-        result = args.reduce<ExprTree>((acc, arg) => ({ tag: 'App', fn: acc, arg: arg! }), fn);
-      } else {
-        // Partially applied
-        result = { tag: 'PartialApp', fn, args };
-      }
+      result = buildPartialExpr(d.op, args);
       break;
     }
 
@@ -142,12 +236,7 @@ function buildExpr(nodeId: string, _portId: string, ctx: BuildCtx): ExprTree {
       const args: Array<ExprTree | null> = inputPorts.map(p =>
         inputExpr(nodeId, p.id, { ...ctx, visited: new Set(ctx.visited) })
       );
-      const fn: ExprTree = { tag: 'Builtin', name: d.op };
-      if (args.every(a => a !== null)) {
-        result = args.reduce<ExprTree>((acc, arg) => ({ tag: 'App', fn: acc, arg: arg! }), fn);
-      } else {
-        result = { tag: 'PartialApp', fn, args };
-      }
+      result = buildPartialExpr(d.op, args);
       break;
     }
 
@@ -193,8 +282,8 @@ function buildExpr(nodeId: string, _portId: string, ctx: BuildCtx): ExprTree {
     }
 
     case 'module': {
-      // Phase 5 — not yet implemented
-      result = { tag: 'Err', message: `Module "${d.name}" evaluation not yet implemented` };
+      const md = d as ModuleNodeData;
+      result = buildModuleExpr(nodeId, md, portId, ctx);
       break;
     }
 
@@ -214,8 +303,12 @@ export interface OutputTarget {
   expr: ExprTree;
 }
 
-export function buildOutputExprs(nodes: LibNode[], edges: LibEdge[]): OutputTarget[] {
-  const ctx = makeCtx(nodes, edges);
+export function buildOutputExprs(
+  nodes: LibNode[],
+  edges: LibEdge[],
+  subgraphs: Record<string, SubgraphState> = {}
+): OutputTarget[] {
+  const ctx = makeCtx(nodes, edges, subgraphs);
   return nodes
     .filter(n => n.data.kind === 'output')
     .map(n => ({

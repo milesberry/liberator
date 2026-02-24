@@ -24,6 +24,11 @@ export function evaluate(expr: ExprTree, env: Env = new Map(), steps = { n: 0 })
       return b ?? VError(`Unknown builtin: ${expr.name}`);
     }
 
+    case 'Var': {
+      const v = env.get(expr.name);
+      return v ?? VError(`Unbound variable: ${expr.name}`);
+    }
+
     case 'Err':
       return VError(expr.message);
 

@@ -6,18 +6,18 @@ import { Play, RotateCcw, Save, FolderOpen, BookOpen, ChevronDown, Trash2 } from
 import { useEvaluationStore } from '../../store/evaluationStore';
 import { useEvaluation }      from '../../hooks/useEvaluation';
 import { useGraphStore }      from '../../store/graphStore';
-import { saveGraph, loadGraph, clearSaved } from '../../utils/serialise';
+import { saveGraph, loadGraph } from '../../utils/serialise';
 import { EXAMPLES }           from '../../examples';
 
 export function Toolbar() {
   const { isRunning, reset: resetEval } = useEvaluationStore();
   const { runAll } = useEvaluation();
-  const { nodes, edges, loadGraph: loadIntoStore, clearGraph } = useGraphStore();
+  const { nodes, edges, subgraphs, loadGraph: loadIntoStore, clearGraph } = useGraphStore();
   const [showExamples, setShowExamples] = useState(false);
   const [saveMsg, setSaveMsg] = useState('');
 
   const handleSave = () => {
-    saveGraph(nodes, edges);
+    saveGraph(nodes, edges, subgraphs);
     setSaveMsg('Saved!');
     setTimeout(() => setSaveMsg(''), 1500);
   };
@@ -26,14 +26,14 @@ export function Toolbar() {
     const g = loadGraph();
     if (!g) { alert('No saved program found.'); return; }
     if (nodes.length > 0 && !confirm(`Load "${g.name}"? This will replace the current canvas.`)) return;
-    loadIntoStore(g.nodes, g.edges);
+    loadIntoStore(g.nodes, g.edges, g.subgraphs);
     resetEval();
   };
 
   const handleExample = (idx: number) => {
     const ex = EXAMPLES[idx];
     if (nodes.length > 0 && !confirm(`Load example "${ex.name}"? This will replace the current canvas.`)) return;
-    loadIntoStore(ex.nodes, ex.edges);
+    loadIntoStore(ex.nodes, ex.edges, (ex as any).subgraphs);
     resetEval();
     setShowExamples(false);
   };
@@ -119,7 +119,7 @@ export function Toolbar() {
       </button>
 
       <div className="flex-1" />
-      <span className="text-slate-600 text-xs">Phase 3 — examples &amp; save/load</span>
+      <span className="text-slate-600 text-xs">Phase 4 — named functions</span>
 
       {/* Close examples dropdown when clicking outside */}
       {showExamples && (

@@ -29,33 +29,51 @@ export function checkGraph(
   nodes: LibNode[],
   edges: LibEdge[],
 ): CheckedEdge[] {
-  // Build lookup maps
   const nodeById = new Map(nodes.map(n => [n.id, n]));
-
-  // We'll accumulate a global substitution as we process edges in topological order.
-  // For simplicity (and correctness for trees / DAGs), we do two passes:
-  // pass 1 — collect all unifications; pass 2 — apply and annotate.
 
   type Subst = Map<string, HaskellType>;
   let subst: Subst = new Map();
 
-  // Helper: get a port's current type with substitution applied
-  const portType = (nodeId: string, portId: string): HaskellType => {
+  // Build a map: nodeId → set of connected input portIds
+  const connectedInputs = new Map<string, Set<string>>();
+  for (const edge of edges) {
+    const tgtPortId = edge.targetHandle?.split('__')[1];
+    if (!tgtPortId) continue;
+    const s = connectedInputs.get(edge.target) ?? new Set<string>();
+    s.add(tgtPortId);
+    connectedInputs.set(edge.target, s);
+  }
+
+  // Compute the effective output type for a node's output port.
+  // For primop/hof/listop with unconnected inputs, the result is a partial-application
+  // function type: (missing0 → missing1 → … → declared_result).
+  const effectiveOutputType = (nodeId: string, portId: string): HaskellType => {
     const node = nodeById.get(nodeId);
     if (!node) return TUnknown;
-    const port = node.data.ports.find(p => p.id === portId);
+    const d = node.data;
+    const port = d.ports.find(p => p.id === portId);
     if (!port) return TUnknown;
+
+    // Only compute partial-app type for result ports on multi-input nodes
+    if (portId === 'result' && (d.kind === 'primop' || d.kind === 'hof' || d.kind === 'listop')) {
+      const inputPorts = d.ports.filter(p => p.direction === 'input');
+      if (inputPorts.length > 1) {
+        const connected = connectedInputs.get(nodeId) ?? new Set<string>();
+        return applySubst(subst, partialAppOutputType(inputPorts, port.type, connected));
+      }
+    }
+
     return applySubst(subst, port.type);
   };
 
-  // Pass 1: unify along each edge, building up substitution
+  // Pass 1: unify along each edge, building substitution
   for (const edge of edges) {
     const srcPortId = edge.sourceHandle?.split('__')[1];
     const tgtPortId = edge.targetHandle?.split('__')[1];
     if (!srcPortId || !tgtPortId) continue;
 
-    const srcType = portType(edge.source, srcPortId);
-    const tgtType = portType(edge.target, tgtPortId);
+    const srcType = effectiveOutputType(edge.source, srcPortId);
+    const tgtType = applySubst(subst, nodeById.get(edge.target)?.data.ports.find(p => p.id === tgtPortId)?.type ?? TUnknown);
 
     const result = unify(srcType, tgtType, subst);
     if (result) subst = result;
@@ -69,14 +87,9 @@ export function checkGraph(
       return { id: edge.id, sourceType: TUnknown, targetType: TUnknown, compatible: false, errorMessage: 'Missing port handle' };
     }
 
-    const srcType = portType(edge.source, srcPortId);
-    const tgtType = portType(edge.target, tgtPortId);
+    const resolvedSrc = applySubst(subst, effectiveOutputType(edge.source, srcPortId));
+    const resolvedTgt = applySubst(subst, nodeById.get(edge.target)?.data.ports.find(p => p.id === tgtPortId)?.type ?? TUnknown);
 
-    // Re-resolve with full subst
-    const resolvedSrc = applySubst(subst, srcType);
-    const resolvedTgt = applySubst(subst, tgtType);
-
-    // Compatible if unification succeeds
     const testResult = unify(resolvedSrc, resolvedTgt, new Map());
     const compatible = testResult !== null;
 
