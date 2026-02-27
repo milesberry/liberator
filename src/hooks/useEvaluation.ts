@@ -6,7 +6,7 @@ import { useGraphStore }      from '../store/graphStore';
 import { useEvaluationStore } from '../store/evaluationStore';
 import { buildOutputExprs }   from '../engine/toExprTree';
 import { evaluate }           from '../engine/evaluator';
-import { showValue, VBottom } from '../types/values';
+import { showValue } from '../types/values';
 
 export function useEvaluation() {
   const setResults = useEvaluationStore(s => s.setResults);

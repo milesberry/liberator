@@ -154,7 +154,7 @@ function buildModuleExpr(
   const paramNames = md.inputPorts.map(p => `__fn_${md.name}_${p.id}`);
 
   // Resolve the actual argument expressions from the outer call site
-  const argExprs: Array<ExprTree | null> = md.inputPorts.map((port, i) =>
+  const argExprs: Array<ExprTree | null> = md.inputPorts.map((port) =>
     inputExpr(outerNodeId, port.id, { ...outerCtx, visited: new Set(outerCtx.visited) })
   );
 

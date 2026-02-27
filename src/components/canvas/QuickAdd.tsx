@@ -54,7 +54,6 @@ export function QuickAdd({ open, onClose }: QuickAddProps) {
 
   function addAtCentre(def: NodeDefinition) {
     const viewport = reactFlow.getViewport();
-    const domNode  = reactFlow.getNodesBounds ? null : null; // unused
     // Get canvas container bounds from the viewport's DOM element
     const rfContainer = document.querySelector('.react-flow') as HTMLElement | null;
     const rect = rfContainer?.getBoundingClientRect();

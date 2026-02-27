@@ -3,6 +3,7 @@
 // Node positions are laid out so the graph reads left-to-right.
 
 import type { SavedGraph } from '../utils/serialise';
+import type { HaskellType } from '../types/haskell';
 
 // ─── Helper to make nodes/edges with stable IDs ───────────────────────────
 
@@ -22,14 +23,14 @@ function e(id: string, src: string, srcPort: string, tgt: string, tgtPort: strin
   } as RawEdge;
 }
 
-// Shared unknown type sentinel
-const U = { tag: 'Unknown' as const };
-const TI = { tag: 'Int' as const };
-const TB = { tag: 'Bool' as const };
-const TLI = { tag: 'List' as const, elem: TI };
-const TFun = (from: unknown, to: unknown) => ({ tag: 'Fun' as const, from, to });
+// Shared type sentinels
+const U: HaskellType   = { tag: 'Unknown' };
+const TI: HaskellType  = { tag: 'Int' };
+const TB: HaskellType  = { tag: 'Bool' };
+const TLI: HaskellType = { tag: 'List', elem: TI };
+const TFun = (from: HaskellType, to: HaskellType): HaskellType => ({ tag: 'Fun', from, to });
 
-function port(id: string, label: string, dir: 'input' | 'output', type = U) {
+function port(id: string, label: string, dir: 'input' | 'output', type: HaskellType = U) {
   return { id, label, direction: dir, type, connected: false };
 }
 

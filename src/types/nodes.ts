@@ -34,40 +34,47 @@ export interface ValueNodeData {
   valueType: 'Int' | 'Float' | 'Bool' | 'String' | 'List';
   literal: string;       // raw user-entered string, parsed at eval time
   ports: Port[];         // single output port
+  [key: string]: unknown;
 }
 
 export interface PrimOpNodeData {
   kind: 'primop';
   op: PrimOp;
   ports: Port[];
+  [key: string]: unknown;
 }
 
 export interface ListOpNodeData {
   kind: 'listop';
   op: ListOp;
   ports: Port[];
+  [key: string]: unknown;
 }
 
 export interface HofNodeData {
   kind: 'hof';
   op: HofOp;
   ports: Port[];
+  [key: string]: unknown;
 }
 
 export interface LambdaNodeData {
   kind: 'lambda';
   paramName: string;      // bound variable name, shown on input port
   ports: Port[];          // 'param' input + 'body' input + 'result' output (Fun type)
+  [key: string]: unknown;
 }
 
 export interface IfNodeData {
   kind: 'if';
   ports: Port[];          // 'cond' (Bool), 'then' (a), 'else' (a), 'result' (a)
+  [key: string]: unknown;
 }
 
 export interface ApplyNodeData {
   kind: 'apply';
   ports: Port[];          // 'fn' (a->b), 'arg' (a), 'result' (b)
+  [key: string]: unknown;
 }
 
 export interface OutputNodeData {
@@ -75,6 +82,7 @@ export interface OutputNodeData {
   label: string;          // user-editable display name
   lastValue: string | null; // rendered result string (set by evaluator)
   ports: Port[];          // single input
+  [key: string]: unknown;
 }
 
 export interface ModuleNodeData {
@@ -85,18 +93,21 @@ export interface ModuleNodeData {
   inputPorts: Port[];
   outputPorts: Port[];
   ports: Port[];          // inputPorts ++ outputPorts
+  [key: string]: unknown;
 }
 
 export interface CallNodeData {
   kind: 'call';
   targetName: string;     // name of the Function to call ('' = unset)
   ports: Port[];          // mirrors target function's inputPorts + outputPorts
+  [key: string]: unknown;
 }
 
 export interface LetNodeData {
   kind: 'let';
   varName: string;        // the bound variable name, default 'x'
   ports: Port[];          // 'value' input, 'param' output (Var), 'body' input, 'result' output
+  [key: string]: unknown;
 }
 
 export interface ListCompNodeData {
@@ -105,6 +116,7 @@ export interface ListCompNodeData {
   // Desugars to: map transform (filter pred list)
   // If pred port is unconnected, desugars to: map transform list
   ports: Port[];   // 'list' input, 'transform' input, 'pred' input (optional), 'result' output
+  [key: string]: unknown;
 }
 
 // ─── Discriminated union ───────────────────────────────────────────────────

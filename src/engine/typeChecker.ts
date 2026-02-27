@@ -8,7 +8,7 @@
 import type { LibNode } from '../types/nodes';
 import type { LibEdge } from '../types/edges';
 import {
-  unify, applySubst, TFun, TUnknown, typesEqual,
+  unify, applySubst, TFun, TUnknown,
   type HaskellType,
 } from '../types/haskell';
 import type { Port } from '../types/nodes';

@@ -3,7 +3,7 @@
 // Renders the node header, input handles on the left, output handles on the right.
 
 import { Handle, Position, useNodeId } from '@xyflow/react';
-import { showType, wireColor, type HaskellType } from '../types/haskell';
+import { showType, wireColor } from '../types/haskell';
 import type { Port } from '../types/nodes';
 import { handleId } from '../types/nodes';
 

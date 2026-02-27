@@ -4,10 +4,10 @@
 
 import type { XYPosition } from '@xyflow/react';
 import {
-  TInt, TFloat, TBool, TString, TList, TFun, TVar, TUnknown, TFunChain, TTuple,
+  TInt, TFloat, TBool, TString, TList, TFun, TVar, TUnknown, TTuple,
 } from '../types/haskell';
 import type { LibNodeData, Port, PrimOp, ListOp, HofOp } from '../types/nodes';
-import { newId, shortId } from '../utils/idGen';
+import { newId } from '../utils/idGen';
 
 // ─── Palette categories ────────────────────────────────────────────────────
 

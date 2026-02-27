@@ -9,6 +9,7 @@ export interface LibEdgeData {
   targetType: HaskellType;          // type of the target input port
   compatible: boolean | null;       // null = not yet checked; false = mismatch
   errorMessage?: string;
+  [key: string]: unknown;
 }
 
 export type LibEdge = Edge<LibEdgeData>;

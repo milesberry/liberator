@@ -187,7 +187,7 @@ function CanvasInner({ onRegisterTidyUp }: CanvasInnerProps) {
   const {
     setSelectedNodeId,
     selectedNodeIds, setSelectedNodeIds,
-    clipboard, setClipboard,
+    setClipboard,
     theme,
   } = useUIStore();
   const { screenToFlowPosition, fitView } = useReactFlow();
@@ -361,7 +361,6 @@ function CanvasInner({ onRegisterTidyUp }: CanvasInnerProps) {
         multiSelectionKeyCode="Shift"
         panOnDrag={[1, 2]}
         panOnScroll
-        panOnScrollMode="free"
         zoomOnScroll={false}
         zoomOnPinch
         zoomActivationKeyCode="Control"
