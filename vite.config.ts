@@ -45,8 +45,16 @@ function docsPlugin() {
   };
 }
 
+// Derive base path from GITHUB_REPOSITORY env var (set automatically by GitHub Actions).
+// e.g. "milesberry/liberator" → "/liberator/"
+// Falls back to "/" for local development.
+const base = process.env.GITHUB_REPOSITORY
+  ? `/${process.env.GITHUB_REPOSITORY.split('/')[1]}/`
+  : '/';
+
 // https://vite.dev/config/
 export default defineConfig({
+  base,
   plugins: [
     react(),
     tailwindcss(),

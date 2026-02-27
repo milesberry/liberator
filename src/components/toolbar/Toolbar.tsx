@@ -204,7 +204,7 @@ export function Toolbar({ onTidyUp }: ToolbarProps) {
 
       {/* Getting-started guide */}
       <button
-        onClick={() => window.open('/docs/getting-started.md', '_blank')}
+        onClick={() => window.open(`${import.meta.env.BASE_URL}docs/getting-started.md`, '_blank')}
         title="Getting started guide"
         className="flex items-center gap-1.5 px-2 py-1 rounded text-xs font-medium transition-colors hover:text-white"
         style={{ background: 'var(--ctrl-bg)', border: '1px solid var(--ctrl-border)', color: 'var(--text-muted)' }}
