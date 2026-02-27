@@ -45,7 +45,7 @@ A rough accounting of the responsibilities:
 | **Feature specification** | ✓ | |
 | **UI / UX decisions** | ✓ | |
 | **Testing & bug reports** | ✓ | |
-| **Documentation & screenshots** | ✓ | ✓ |
+| **Documentation & screenshots** | shared | shared |
 | **React / TypeScript implementation** | | ✓ |
 | **Haskell evaluator & type checker** | | ✓ |
 | **Graph layout algorithm** | | ✓ |
