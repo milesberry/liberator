@@ -117,7 +117,7 @@ Graphs are serialised to plain JSON. **Save** downloads a `.json` file; **Load**
 
 ```bash
 # 1. Clone the repository
-git clone <repo-url>
+git clone https://github.com/milesberry/liberator.git
 cd liberator
 
 # 2. Install dependencies
