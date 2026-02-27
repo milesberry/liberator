@@ -14,7 +14,8 @@ export function LambdaNode({ id, data, selected }: NodeProps<LibNode>) {
         <input
           value={d.paramName}
           onChange={e => updateNodeData(id, nd => { (nd as LambdaNodeData).paramName = e.target.value; })}
-          className="w-10 text-center font-mono bg-slate-800 text-white border border-slate-600 rounded px-1 py-0.5"
+          className="w-10 text-center font-mono rounded px-1 py-0.5 outline-none"
+          style={{ background: 'var(--bg-node-input)', color: 'var(--text-primary)', border: '1px solid var(--border-input)' }}
           onClick={e => e.stopPropagation()}
         />
         <span className="text-pink-300">→</span>

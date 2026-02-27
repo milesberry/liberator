@@ -4,7 +4,7 @@
 
 import type { XYPosition } from '@xyflow/react';
 import {
-  TInt, TFloat, TBool, TString, TList, TFun, TVar, TUnknown, TFunChain,
+  TInt, TFloat, TBool, TString, TList, TFun, TVar, TUnknown, TFunChain, TTuple,
 } from '../types/haskell';
 import type { LibNodeData, Port, PrimOp, ListOp, HofOp } from '../types/nodes';
 import { newId, shortId } from '../utils/idGen';
@@ -19,6 +19,8 @@ export type PaletteCategory =
   | 'lists'
   | 'higher-order'
   | 'utilities'
+  | 'tuples'
+  | 'strings'
   | 'control'
   | 'io'
   | 'modules';
@@ -225,6 +227,10 @@ const listNodes: NodeDefinition[] = [
     const a = freshVar('a', id);
     return [inp('elem', 'x', a), inp('list', 'xs', TList(a)), out('result', 'result', TList(a))];
   }),
+  listOp('uncons', 'x:xs (uncons)', 'Split a list into head and tail.\nhead :: a,  tail :: [a]', (id) => {
+    const a = freshVar('a', id);
+    return [inp('list', 'xs', TList(a)), out('head', 'head', a), out('tail', 'tail', TList(a))];
+  }),
   listOp('null', 'null (isEmpty)', 'null :: [a] → Bool', (id) => {
     const a = freshVar('a', id);
     return [inp('list', 'xs', TList(a)), out('result', 'result', TBool)];
@@ -358,6 +364,108 @@ const utilityNodes: NodeDefinition[] = [
   },
 ];
 
+// ─── Tuple nodes ───────────────────────────────────────────────────────────
+
+const tupleNodes: NodeDefinition[] = [
+  {
+    kind: 'hof', subtype: 'pair', label: 'pair', category: 'tuples',
+    description: 'pair :: a → b → (a, b)  — creates a 2-tuple',
+    makeData: (id) => {
+      const a = freshVar('a', id), b = freshVar('b', id);
+      return {
+        kind: 'hof', op: 'pair' as HofOp,
+        ports: [inp('arg0', 'x', a), inp('arg1', 'y', b), out('result', 'result', TTuple([a, b]))],
+      };
+    },
+  },
+  {
+    kind: 'hof', subtype: 'fst', label: 'fst', category: 'tuples',
+    description: 'fst :: (a, b) → a  — first element of a pair',
+    makeData: (id) => {
+      const a = freshVar('a', id), b = freshVar('b', id);
+      return {
+        kind: 'hof', op: 'fst' as HofOp,
+        ports: [inp('arg0', '(a,b)', TTuple([a, b])), out('result', 'result', a)],
+      };
+    },
+  },
+  {
+    kind: 'hof', subtype: 'snd', label: 'snd', category: 'tuples',
+    description: 'snd :: (a, b) → b  — second element of a pair',
+    makeData: (id) => {
+      const a = freshVar('a', id), b = freshVar('b', id);
+      return {
+        kind: 'hof', op: 'snd' as HofOp,
+        ports: [inp('arg0', '(a,b)', TTuple([a, b])), out('result', 'result', b)],
+      };
+    },
+  },
+];
+
+// ─── String nodes ──────────────────────────────────────────────────────────
+
+type StringOp = 'concat' | 'show' | 'words' | 'unwords' | 'lines' | 'unlines' | 'strLength' | 'strReverse' | 'strConcat' | 'ord' | 'chr' | 'strToChars' | 'charsToStr';
+
+function stringNode(op: StringOp, label: string, desc: string, makePorts: (id: string) => Port[]): NodeDefinition {
+  return {
+    kind: 'hof', subtype: op, label, category: 'strings', description: desc,
+    makeData: (id) => ({ kind: 'hof', op: op as HofOp, ports: makePorts(id) }),
+  };
+}
+
+const stringNodes: NodeDefinition[] = [
+  stringNode('show', 'show', 'show :: a → String  — convert value to string', (id) => {
+    const a = freshVar('a', id);
+    return [inp('arg0', 'x', a), out('result', 'result', TString)];
+  }),
+  stringNode('strConcat', 'strConcat (++)', 'strConcat :: String → String → String', () =>
+    [inp('arg0', 's1', TString), inp('arg1', 's2', TString), out('result', 'result', TString)]),
+  stringNode('concat', 'concat', 'concat :: [String] → String  — join list of strings', () =>
+    [inp('arg0', 'xss', TList(TString)), out('result', 'result', TString)]),
+  stringNode('words', 'words', 'words :: String → [String]  — split on whitespace', () =>
+    [inp('arg0', 's', TString), out('result', 'result', TList(TString))]),
+  stringNode('unwords', 'unwords', 'unwords :: [String] → String  — join with spaces', () =>
+    [inp('arg0', 'xs', TList(TString)), out('result', 'result', TString)]),
+  stringNode('lines', 'lines', 'lines :: String → [String]  — split on newlines', () =>
+    [inp('arg0', 's', TString), out('result', 'result', TList(TString))]),
+  stringNode('unlines', 'unlines', 'unlines :: [String] → String  — join with newlines', () =>
+    [inp('arg0', 'xs', TList(TString)), out('result', 'result', TString)]),
+  stringNode('strLength', 'strLength', 'strLength :: String → Int', () =>
+    [inp('arg0', 's', TString), out('result', 'result', TInt)]),
+  stringNode('strReverse', 'strReverse', 'strReverse :: String → String', () =>
+    [inp('arg0', 's', TString), out('result', 'result', TString)]),
+  // Character / code-point
+  stringNode('ord', 'ord', 'ord :: String → Int  — Unicode code point of the first character', () =>
+    [inp('arg0', 'c', TString), out('result', 'result', TInt)]),
+  stringNode('chr', 'chr', 'chr :: Int → String  — single-character string for a code point', () =>
+    [inp('arg0', 'n', TInt), out('result', 'result', TString)]),
+  stringNode('strToChars', 'strToChars', 'strToChars :: String → [Int]  — explode string into list of code points', () =>
+    [inp('arg0', 's', TString), out('result', 'result', TList(TInt))]),
+  stringNode('charsToStr', 'charsToStr', 'charsToStr :: [Int] → String  — collapse code points back into a string', () =>
+    [inp('arg0', 'ns', TList(TInt)), out('result', 'result', TString)]),
+];
+
+// ─── List comprehension node ───────────────────────────────────────────────
+
+const listCompNodes: NodeDefinition[] = [
+  {
+    kind: 'listcomp', label: 'List Comprehension', category: 'control',
+    description: '[ f x | x ← xs, p x ]  — map f over xs, optionally filtering by p. Desugars to map f (filter p xs).',
+    makeData: (id) => {
+      const a = freshVar('a', id), b = freshVar('b', id);
+      return {
+        kind: 'listcomp',
+        ports: [
+          inp('list',      'xs',    TList(a)),
+          inp('transform', 'f',     TFun(a, b)),
+          inp('pred',      'p (opt)', TFun(a, TBool)),
+          out('result',    'result', TList(b)),
+        ],
+      };
+    },
+  },
+];
+
 // ─── Control nodes ─────────────────────────────────────────────────────────
 
 const controlNodes: NodeDefinition[] = [
@@ -407,6 +515,22 @@ const controlNodes: NodeDefinition[] = [
       };
     },
   },
+  {
+    kind: 'let', label: 'Let (local variable)', category: 'control',
+    description: 'let x = value in body — binds a local name. Wire the "= value" input and "x →" output into your expression, then connect the expression result to "in →".',
+    makeData: (id) => {
+      const a = freshVar('a', id), b = freshVar('b', id);
+      return {
+        kind: 'let', varName: 'x',
+        ports: [
+          inp('value',  '= value', a),   // the expression bound to x
+          out('param',  'x →',     a),   // emits Var(varName), same pattern as lambda param
+          inp('body',   'in →',    b),   // body expression that uses x
+          out('result', 'result',  b),   // (λx.body) value
+        ],
+      };
+    },
+  },
 ];
 
 // ─── I/O nodes ─────────────────────────────────────────────────────────────
@@ -425,6 +549,16 @@ const ioNodes: NodeDefinition[] = [
   },
 ];
 
+// ─── Function / module-call nodes ─────────────────────────────────────────
+
+const moduleNodes: NodeDefinition[] = [
+  {
+    kind: 'call', label: 'Call Function', category: 'modules',
+    description: 'Call a named Function by selecting it from the dropdown. Ports update to match the selected function\'s signature.',
+    makeData: () => ({ kind: 'call', targetName: '', ports: [] }),
+  },
+];
+
 // ─── Full registry ─────────────────────────────────────────────────────────
 
 export const NODE_REGISTRY: NodeDefinition[] = [
@@ -435,8 +569,12 @@ export const NODE_REGISTRY: NodeDefinition[] = [
   ...listNodes,
   ...hofNodes,
   ...utilityNodes,
+  ...tupleNodes,
+  ...stringNodes,
+  ...listCompNodes,
   ...controlNodes,
   ...ioNodes,
+  ...moduleNodes,
 ];
 
 // Look up a definition by kind + optional subtype
@@ -476,6 +614,8 @@ export const CATEGORY_LABELS: Record<PaletteCategory, string> = {
   lists:          'Lists',
   'higher-order': 'Higher-Order',
   utilities:      'Utilities',
+  tuples:         'Tuples',
+  strings:        'Strings',
   control:        'Control',
   io:             'Input / Output',
   modules:        'Functions',

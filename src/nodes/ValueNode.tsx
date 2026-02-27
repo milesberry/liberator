@@ -19,11 +19,16 @@ export function ValueNode({ id, data, selected }: NodeProps<LibNode>) {
   };
 
   return (
-    <BaseNode kind="value" label={`${VALUE_TYPE_LABELS[d.valueType]} ${d.valueType}`} ports={d.ports} selected={selected} minWidth={150}>
+    <BaseNode kind="value" label={`${VALUE_TYPE_LABELS[d.valueType]} ${d.valueType}`} ports={d.ports} selected={selected} minWidth={120}>
       <input
         value={d.literal}
         onChange={handleChange}
-        className="w-full text-xs font-mono bg-slate-800 text-white border border-slate-600 rounded px-1 py-0.5 text-center nodrag"
+        className="w-16 text-xs font-mono rounded px-1 py-0.5 text-center nodrag outline-none focus:border-blue-400"
+        style={{
+          background: 'var(--bg-node-input)',
+          color: 'var(--text-primary)',
+          border: '1px solid var(--border-input)',
+        }}
         onClick={e => e.stopPropagation()}
       />
     </BaseNode>

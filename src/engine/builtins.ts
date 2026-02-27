@@ -2,7 +2,7 @@
 // Every builtin is a curried HaskellValue so the evaluator can apply them
 // one argument at a time, enabling partial application naturally.
 
-import { VInt, VFloat, VBool, VString, VList, VFun, VError, showValue, toNumber, isNumeric } from '../types/values';
+import { VInt, VFloat, VBool, VString, VList, VTuple, VFun, VError, showValue, toNumber, isNumeric } from '../types/values';
 import type { HaskellValue } from '../types/values';
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
@@ -40,7 +40,8 @@ function deepEq(a: HaskellValue, b: HaskellValue): boolean {
     case 'VFloat':  return a.value === (b as typeof a).value;
     case 'VBool':   return a.value === (b as typeof a).value;
     case 'VString': return a.value === (b as typeof a).value;
-    case 'VList':   return a.elements.length === (b as typeof a).elements.length
+    case 'VList':
+    case 'VTuple':  return a.elements.length === (b as typeof a).elements.length
                         && a.elements.every((e, i) => deepEq(e, (b as typeof a).elements[i]));
     default: return false;
   }
@@ -250,10 +251,132 @@ export const builtins: Record<string, HaskellValue> = {
     return VList(elems);
   }),
 
-  // zip xs ys = [(x,y)...]  — represented as [[x,y],...] since we have no tuple node yet
+  // zip xs ys = [(x,y)...]
   'zip': VFun(xs => VFun(ys => {
     if (xs.tag !== 'VList' || ys.tag !== 'VList') return VError('zip: both args must be lists');
     const len = Math.min(xs.elements.length, ys.elements.length);
-    return VList(Array.from({ length: len }, (_, i) => VList([xs.elements[i], ys.elements[i]])));
+    return VList(Array.from({ length: len }, (_, i) => VTuple([xs.elements[i], ys.elements[i]])));
   })),
+
+  // ─── Tuple operations ─────────────────────────────────────────────────────
+
+  // pair x y = (x, y)
+  'pair': VFun(x => VFun(y => VTuple([x, y]))),
+
+  // fst (x, _) = x
+  'fst': VFun(t => {
+    if (t.tag !== 'VTuple' || t.elements.length < 1) return VError('fst: expected a pair');
+    return t.elements[0];
+  }),
+
+  // snd (_, y) = y
+  'snd': VFun(t => {
+    if (t.tag !== 'VTuple' || t.elements.length < 2) return VError('snd: expected a pair');
+    return t.elements[1];
+  }),
+
+  // ─── String operations ────────────────────────────────────────────────────
+
+  // concat :: [[Char]] → [Char]  — joins a list of strings
+  'concat': VFun(xs => {
+    if (xs.tag !== 'VList') return VError('concat: expected a list of strings');
+    const parts: string[] = [];
+    for (const x of xs.elements) {
+      if (x.tag !== 'VString') return VError(`concat: expected strings, got ${showValue(x)}`);
+      parts.push(x.value);
+    }
+    return VString(parts.join(''));
+  }),
+
+  // show :: a → String  — convert any value to its display string
+  'show': VFun(v => VString(showValue(v))),
+
+  // words :: String → [String]  — split on whitespace
+  'words': VFun(s => {
+    if (s.tag !== 'VString') return VError('words: expected String');
+    const ws = s.value.trim().split(/\s+/).filter(w => w.length > 0);
+    return VList(ws.map(VString));
+  }),
+
+  // unwords :: [String] → String  — join with spaces
+  'unwords': VFun(xs => {
+    if (xs.tag !== 'VList') return VError('unwords: expected a list of strings');
+    const parts: string[] = [];
+    for (const x of xs.elements) {
+      if (x.tag !== 'VString') return VError(`unwords: expected strings, got ${showValue(x)}`);
+      parts.push(x.value);
+    }
+    return VString(parts.join(' '));
+  }),
+
+  // lines :: String → [String]  — split on newlines
+  'lines': VFun(s => {
+    if (s.tag !== 'VString') return VError('lines: expected String');
+    const ls = s.value.split('\n');
+    return VList(ls.map(VString));
+  }),
+
+  // unlines :: [String] → String  — join with newlines
+  'unlines': VFun(xs => {
+    if (xs.tag !== 'VList') return VError('unlines: expected a list of strings');
+    const parts: string[] = [];
+    for (const x of xs.elements) {
+      if (x.tag !== 'VString') return VError(`unlines: expected strings, got ${showValue(x)}`);
+      parts.push(x.value);
+    }
+    return VString(parts.join('\n'));
+  }),
+
+  // strLength :: String → Int
+  'strLength': VFun(s => {
+    if (s.tag !== 'VString') return VError('strLength: expected String');
+    return VInt(s.value.length);
+  }),
+
+  // strReverse :: String → String
+  'strReverse': VFun(s => {
+    if (s.tag !== 'VString') return VError('strReverse: expected String');
+    return VString([...s.value].reverse().join(''));
+  }),
+
+  // strConcat :: String → String → String  — append two strings
+  'strConcat': VFun(a => VFun(b => {
+    if (a.tag !== 'VString' || b.tag !== 'VString') return VError('strConcat: expected two Strings');
+    return VString(a.value + b.value);
+  })),
+
+  // ─── Character / code-point operations ───────────────────────────────────
+
+  // ord :: String → Int  — Unicode code point of the first character
+  'ord': VFun(s => {
+    if (s.tag !== 'VString') return VError('ord: expected String');
+    if (s.value.length === 0) return VError('ord: empty string');
+    return VInt(s.value.codePointAt(0)!);
+  }),
+
+  // chr :: Int → String  — single-character string for a code point
+  'chr': VFun(n => {
+    if (n.tag !== 'VInt') return VError('chr: expected Int');
+    if (n.value < 0 || n.value > 0x10FFFF) return VError(`chr: code point ${n.value} out of range`);
+    return VString(String.fromCodePoint(n.value));
+  }),
+
+  // strToChars :: String → [Int]  — explode string into list of code points
+  'strToChars': VFun(s => {
+    if (s.tag !== 'VString') return VError('strToChars: expected String');
+    // [...s.value] correctly handles multi-codepoint characters (emoji etc.)
+    return VList([...s.value].map(c => VInt(c.codePointAt(0)!)));
+  }),
+
+  // charsToStr :: [Int] → String  — collapse list of code points into string
+  'charsToStr': VFun(xs => {
+    if (xs.tag !== 'VList') return VError('charsToStr: expected a list of Int');
+    const parts: string[] = [];
+    for (const x of xs.elements) {
+      if (x.tag !== 'VInt') return VError(`charsToStr: expected Int, got ${showValue(x)}`);
+      if (x.value < 0 || x.value > 0x10FFFF) return VError(`charsToStr: code point ${x.value} out of range`);
+      parts.push(String.fromCodePoint(x.value));
+    }
+    return VString(parts.join(''));
+  }),
 };

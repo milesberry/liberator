@@ -22,7 +22,7 @@ export type PrimOp =
   | 'negate' | 'abs';
 
 export type ListOp =
-  | 'head' | 'tail' | 'cons' | 'null' | 'length' | '++' | 'reverse'
+  | 'head' | 'tail' | 'cons' | 'uncons' | 'null' | 'length' | '++' | 'reverse'
   | 'take' | 'drop' | 'elem' | 'last' | 'init';
 
 export type HofOp = 'map' | 'filter' | 'foldr' | 'foldl' | 'foldl1' | 'foldr1' | 'zipWith';
@@ -87,6 +87,26 @@ export interface ModuleNodeData {
   ports: Port[];          // inputPorts ++ outputPorts
 }
 
+export interface CallNodeData {
+  kind: 'call';
+  targetName: string;     // name of the Function to call ('' = unset)
+  ports: Port[];          // mirrors target function's inputPorts + outputPorts
+}
+
+export interface LetNodeData {
+  kind: 'let';
+  varName: string;        // the bound variable name, default 'x'
+  ports: Port[];          // 'value' input, 'param' output (Var), 'body' input, 'result' output
+}
+
+export interface ListCompNodeData {
+  kind: 'listcomp';
+  // [ transform x | x <- list, pred x ]
+  // Desugars to: map transform (filter pred list)
+  // If pred port is unconnected, desugars to: map transform list
+  ports: Port[];   // 'list' input, 'transform' input, 'pred' input (optional), 'result' output
+}
+
 // ─── Discriminated union ───────────────────────────────────────────────────
 
 export type LibNodeData =
@@ -98,7 +118,10 @@ export type LibNodeData =
   | IfNodeData
   | ApplyNodeData
   | OutputNodeData
-  | ModuleNodeData;
+  | ModuleNodeData
+  | CallNodeData
+  | LetNodeData
+  | ListCompNodeData;
 
 // React Flow typed node
 export type LibNode = Node<LibNodeData>;

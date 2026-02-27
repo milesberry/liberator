@@ -15,14 +15,16 @@ export function OutputNode({ id, data, selected }: NodeProps<LibNode>) {
         <input
           value={d.label}
           onChange={e => updateNodeData(id, nd => { (nd as OutputNodeData).label = e.target.value; })}
-          className="text-xs text-center font-semibold bg-transparent text-emerald-300 border-b border-slate-600 outline-none w-full"
+          className="text-xs text-center font-semibold bg-transparent border-b outline-none w-full"
+          style={{ color: 'var(--color-result)', borderColor: 'var(--border-input)' }}
           onClick={e => e.stopPropagation()}
           placeholder="Label…"
         />
-        <div className="text-xs font-mono text-white bg-slate-800 rounded px-2 py-1 min-h-[24px]">
+        <div className="text-xs font-mono rounded px-2 py-1 min-h-[24px]"
+             style={{ background: 'var(--bg-node-input)', color: 'var(--text-primary)' }}>
           {result
-            ? <span className={result.isError ? 'text-red-400' : 'text-emerald-300'}>{result.value}</span>
-            : <span className="text-slate-500">—</span>
+            ? <span style={{ color: result.isError ? '#f87171' : 'var(--color-result)' }}>{result.value}</span>
+            : <span style={{ color: 'var(--text-faint)' }}>—</span>
           }
         </div>
       </div>

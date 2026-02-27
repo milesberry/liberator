@@ -10,15 +10,18 @@ import { handleId } from '../types/nodes';
 // ─── Category colour bands ──────────────────────────────────────────────────
 
 const HEADER_STYLES: Record<string, string> = {
-  value:   'bg-slate-600 text-white',
-  primop:  'bg-blue-700 text-white',
-  listop:  'bg-purple-700 text-white',
-  hof:     'bg-orange-600 text-white',
-  lambda:  'bg-pink-700 text-white',
-  if:      'bg-teal-700 text-white',
-  apply:   'bg-indigo-700 text-white',
-  output:  'bg-emerald-700 text-white',
-  module:  'bg-amber-700 text-white',
+  value:    'bg-slate-600 text-white',
+  primop:   'bg-blue-700 text-white',
+  listop:   'bg-purple-700 text-white',
+  hof:      'bg-orange-600 text-white',
+  lambda:   'bg-pink-700 text-white',
+  if:       'bg-teal-700 text-white',
+  apply:    'bg-indigo-700 text-white',
+  output:   'bg-emerald-700 text-white',
+  module:   'bg-amber-700 text-white',
+  call:     'bg-indigo-700 text-white',
+  let:      'bg-teal-600 text-white',
+  listcomp: 'bg-green-700 text-white',
 };
 
 // ─── PortHandle ──────────────────────────────────────────────────────────────
@@ -47,10 +50,11 @@ function PortHandle({ nodeId, port, compatible }: PortHandleProps) {
           background: color,
           width: 10,
           height: 10,
-          border: '2px solid rgba(255,255,255,0.6)',
+          border: '2px solid var(--handle-border)',
         }}
       />
-      <span className="text-xs text-gray-300 font-mono px-1 leading-none select-none">
+      <span className="text-xs font-mono px-1 leading-none select-none"
+            style={{ color: 'var(--port-label)' }}>
         {port.label}
       </span>
     </div>
@@ -78,7 +82,7 @@ export function BaseNode({ kind, label, ports, children, selected, minWidth = 14
     <div
       className={`rounded-lg shadow-md overflow-hidden border-2 transition-colors
         ${selected ? 'border-white' : 'border-transparent'}`}
-      style={{ minWidth, background: '#1e2130' }}
+      style={{ minWidth, background: 'var(--bg-node)' }}
     >
       {/* Header */}
       <div className={`px-2 py-1 text-xs font-semibold tracking-wide ${headerStyle}`}>

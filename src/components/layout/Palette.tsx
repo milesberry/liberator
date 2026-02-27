@@ -16,8 +16,10 @@ function PaletteItem({ def }: { def: NodeDefinition }) {
     <div
       draggable
       onDragStart={onDragStart}
-      className="px-2 py-1 rounded text-xs cursor-grab active:cursor-grabbing
-                 hover:bg-slate-600 text-slate-200 transition-colors select-none"
+      className="px-2 py-1 rounded text-xs cursor-grab active:cursor-grabbing transition-colors select-none"
+      style={{ color: 'var(--text-primary)' }}
+      onMouseEnter={e => (e.currentTarget.style.background = 'var(--ctrl-hover)')}
+      onMouseLeave={e => (e.currentTarget.style.background = '')}
       title={def.description}
     >
       {def.label}
@@ -38,15 +40,22 @@ export function Palette() {
   const grouped = groupByCategory();
 
   return (
-    <div className="flex flex-col h-full bg-slate-800 border-r border-slate-700 overflow-hidden">
-      <div className="p-2 border-b border-slate-700">
+    <div className="flex flex-col h-full overflow-hidden border-r"
+         style={{ background: 'var(--bg-palette)', borderColor: 'var(--border-subtle)' }}>
+      <div className="p-2 border-b" style={{ borderColor: 'var(--border-subtle)' }}>
         <div className="relative">
-          <Search size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400" />
+          <Search size={12} className="absolute left-2 top-1/2 -translate-y-1/2"
+                  style={{ color: 'var(--text-muted)' }} />
           <input
             value={query}
             onChange={e => setQuery(e.target.value)}
             placeholder="Search nodes…"
-            className="w-full bg-slate-700 text-slate-200 text-xs rounded pl-6 pr-2 py-1 outline-none border border-slate-600 focus:border-blue-500"
+            className="w-full text-xs rounded pl-6 pr-2 py-1 outline-none border focus:border-blue-500"
+            style={{
+              background: 'var(--ctrl-bg)',
+              color: 'var(--text-primary)',
+              borderColor: 'var(--ctrl-border)',
+            }}
           />
         </div>
       </div>
@@ -55,14 +64,17 @@ export function Palette() {
         {filtered ? (
           <div>
             {filtered.length === 0 && (
-              <p className="text-xs text-slate-500 p-2">No nodes match "{query}"</p>
+              <p className="text-xs p-2" style={{ color: 'var(--text-faint)' }}>
+                No nodes match "{query}"
+              </p>
             )}
             {filtered.map(def => <PaletteItem key={`${def.kind}-${def.subtype}`} def={def} />)}
           </div>
         ) : (
           Array.from(grouped.entries()).map(([cat, defs]) => (
             <details key={cat} open className="mb-1">
-              <summary className="text-xs font-semibold text-slate-400 uppercase tracking-wider px-2 py-1 cursor-pointer select-none hover:text-slate-200">
+              <summary className="text-xs font-semibold uppercase tracking-wider px-2 py-1 cursor-pointer select-none"
+                       style={{ color: 'var(--text-muted)' }}>
                 {CATEGORY_LABELS[cat]}
               </summary>
               <div className="pl-1">
@@ -73,7 +85,8 @@ export function Palette() {
         )}
       </div>
 
-      <div className="p-2 border-t border-slate-700 text-xs text-slate-500 text-center select-none">
+      <div className="p-2 border-t text-xs text-center select-none"
+           style={{ borderColor: 'var(--border-subtle)', color: 'var(--text-faint)' }}>
         Drag nodes onto canvas
       </div>
     </div>

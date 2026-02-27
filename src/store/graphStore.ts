@@ -3,6 +3,7 @@
 
 import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
+import { current } from 'immer';
 import {
   applyNodeChanges, applyEdgeChanges,
   type OnNodesChange, type OnEdgesChange, type OnConnect,
@@ -13,6 +14,7 @@ import type { LibEdge } from '../types/edges';
 import { defaultEdgeData } from '../types/edges';
 import { createNode } from '../nodes/registry';
 import type { NodeDefinition } from '../nodes/registry';
+import type { ClipboardNode } from './uiStore';
 import { newId } from '../utils/idGen';
 import { TUnknown } from '../types/haskell';
 
@@ -21,12 +23,38 @@ export interface SubgraphState {
   edges: LibEdge[];
 }
 
+// ─── History snapshot ──────────────────────────────────────────────────────
+
+interface GraphSnapshot {
+  nodes: LibNode[];
+  edges: LibEdge[];
+  subgraphs: Record<string, SubgraphState>;
+}
+
+// Helper: push current state onto the undo stack and clear redo.
+// Must be called inside an Immer set() callback, before mutating state.
+function pushHistory(state: GraphState) {
+  state.history.push({
+    nodes: current(state.nodes) as LibNode[],
+    edges: current(state.edges) as LibEdge[],
+    subgraphs: current(state.subgraphs) as Record<string, SubgraphState>,
+  });
+  if (state.history.length > 100) state.history.shift(); // cap at 100 entries
+  state.future = []; // any new action clears redo
+}
+
+// ─── State interface ───────────────────────────────────────────────────────
+
 interface GraphState {
   // Root graph
   nodes: LibNode[];
   edges: LibEdge[];
   // Subgraphs keyed by subgraphId (for Module nodes)
   subgraphs: Record<string, SubgraphState>;
+
+  // History for undo/redo
+  history: GraphSnapshot[];
+  future:  GraphSnapshot[];
 
   // React Flow event handlers
   onNodesChange: OnNodesChange<LibNode>;
@@ -35,10 +63,17 @@ interface GraphState {
 
   // Graph mutations
   addNode: (def: NodeDefinition, position: XYPosition) => void;
-  removeNode: (id: string) => void;
+  removeNode:  (id: string) => void;
+  removeNodes: (ids: string[]) => void;
+  pasteNodes:  (clipboard: ClipboardNode[], offset?: { x: number; y: number }) => void;
   updateNodeData: (id: string, updater: (data: LibNode['data']) => void) => void;
   loadGraph: (nodes: LibNode[], edges: LibEdge[], subgraphs?: Record<string, SubgraphState>) => void;
   clearGraph: () => void;
+  layoutNodes: (positions: Record<string, { x: number; y: number }>) => void;
+
+  // Undo / redo
+  undo: () => void;
+  redo: () => void;
 
   // Subgraph / module actions
   wrapAsModule: (selectedNodeIds: string[], name: string) => void;
@@ -52,28 +87,43 @@ interface GraphState {
   navStack: string[];
 }
 
+// ─── Store ─────────────────────────────────────────────────────────────────
+
 export const useGraphStore = create<GraphState>()(
   immer((set, get) => ({
     nodes: [],
     edges: [],
     subgraphs: {},
+    history: [],
+    future:  [],
     activeSubgraphId: '',
     navStack: [],
 
+    // ── React Flow change handlers ─────────────────────────────────────────
+
     onNodesChange: (changes) => {
       set((state) => {
+        // Only snapshot on structural changes (remove, end-of-drag)
+        const structural = changes.some(
+          c => c.type === 'remove' ||
+              (c.type === 'position' && !(c as { dragging?: boolean }).dragging)
+        );
+        if (structural) pushHistory(state);
         state.nodes = applyNodeChanges(changes, state.nodes) as LibNode[];
       });
     },
 
     onEdgesChange: (changes) => {
       set((state) => {
+        const structural = changes.some(c => c.type === 'remove');
+        if (structural) pushHistory(state);
         state.edges = applyEdgeChanges(changes, state.edges) as LibEdge[];
       });
     },
 
     onConnect: (connection: Connection) => {
       set((state) => {
+        pushHistory(state);
         const edge: LibEdge = {
           id: newId(),
           source: connection.source,
@@ -101,8 +151,11 @@ export const useGraphStore = create<GraphState>()(
       });
     },
 
+    // ── Graph mutations ────────────────────────────────────────────────────
+
     addNode: (def, position) => {
       set((state) => {
+        pushHistory(state);
         const node = createNode(def, position) as LibNode;
         state.nodes.push(node);
       });
@@ -110,20 +163,74 @@ export const useGraphStore = create<GraphState>()(
 
     removeNode: (id) => {
       set((state) => {
+        pushHistory(state);
+        if (state.activeSubgraphId) {
+          const sub = state.subgraphs[state.activeSubgraphId];
+          if (sub) {
+            sub.nodes = sub.nodes.filter(n => n.id !== id);
+            sub.edges = sub.edges.filter(e => e.source !== id && e.target !== id);
+            return;
+          }
+        }
         state.nodes = state.nodes.filter(n => n.id !== id);
         state.edges = state.edges.filter(e => e.source !== id && e.target !== id);
       });
     },
 
+    removeNodes: (ids) => {
+      set((state) => {
+        const idSet = new Set(ids);
+        pushHistory(state);
+        if (state.activeSubgraphId) {
+          const sub = state.subgraphs[state.activeSubgraphId];
+          if (sub) {
+            sub.nodes = sub.nodes.filter(n => !idSet.has(n.id));
+            sub.edges = sub.edges.filter(e => !idSet.has(e.source) && !idSet.has(e.target));
+            return;
+          }
+        }
+        state.nodes = state.nodes.filter(n => !idSet.has(n.id));
+        state.edges = state.edges.filter(e => !idSet.has(e.source) && !idSet.has(e.target));
+      });
+    },
+
+    pasteNodes: (clipboard, offset = { x: 24, y: 24 }) => {
+      set((state) => {
+        pushHistory(state);
+        for (const entry of clipboard) {
+          const freshId = newId();
+          // Deep-clone data so each paste gets its own copy; reset port connections
+          const data = JSON.parse(JSON.stringify(entry.data)) as LibNode['data'];
+          data.ports = data.ports.map(p => ({ ...p, connected: false }));
+          const node: LibNode = {
+            id:       freshId,
+            type:     entry.type,
+            position: { x: entry.position.x + offset.x, y: entry.position.y + offset.y },
+            data,
+          };
+          state.nodes.push(node as LibNode);
+        }
+      });
+    },
+
     updateNodeData: (id, updater) => {
       set((state) => {
-        const node = state.nodes.find(n => n.id === id);
-        if (node) updater(node.data);
+        pushHistory(state);
+        // Search root graph first
+        const rootNode = state.nodes.find(n => n.id === id);
+        if (rootNode) { updater(rootNode.data); return; }
+        // Fall through to active subgraph
+        if (state.activeSubgraphId) {
+          const sub = state.subgraphs[state.activeSubgraphId];
+          const subNode = sub?.nodes.find(n => n.id === id);
+          if (subNode) updater(subNode.data);
+        }
       });
     },
 
     loadGraph: (nodes, edges, subgraphs?) => {
       set((state) => {
+        pushHistory(state);
         state.nodes = nodes as LibNode[];
         state.edges = edges as LibEdge[];
         if (subgraphs) state.subgraphs = subgraphs;
@@ -134,6 +241,7 @@ export const useGraphStore = create<GraphState>()(
 
     clearGraph: () => {
       set((state) => {
+        pushHistory(state);
         state.nodes = [];
         state.edges = [];
         state.subgraphs = {};
@@ -142,10 +250,58 @@ export const useGraphStore = create<GraphState>()(
       });
     },
 
+    layoutNodes: (positions) => {
+      set((state) => {
+        pushHistory(state);
+        // Update positions in the active view (root or current subgraph)
+        const arr = state.activeSubgraphId
+          ? state.subgraphs[state.activeSubgraphId]?.nodes
+          : state.nodes;
+        for (const node of arr ?? []) {
+          if (positions[node.id]) {
+            node.position = positions[node.id];
+          }
+        }
+      });
+    },
+
+    // ── Undo / Redo ────────────────────────────────────────────────────────
+
+    undo: () => {
+      set((state) => {
+        if (state.history.length === 0) return;
+        const snapshot = state.history.pop()!;
+        state.future.push({
+          nodes:     current(state.nodes)     as LibNode[],
+          edges:     current(state.edges)     as LibEdge[],
+          subgraphs: current(state.subgraphs) as Record<string, SubgraphState>,
+        });
+        state.nodes     = snapshot.nodes     as LibNode[];
+        state.edges     = snapshot.edges     as LibEdge[];
+        state.subgraphs = snapshot.subgraphs as Record<string, SubgraphState>;
+      });
+    },
+
+    redo: () => {
+      set((state) => {
+        if (state.future.length === 0) return;
+        const snapshot = state.future.pop()!;
+        state.history.push({
+          nodes:     current(state.nodes)     as LibNode[],
+          edges:     current(state.edges)     as LibEdge[],
+          subgraphs: current(state.subgraphs) as Record<string, SubgraphState>,
+        });
+        state.nodes     = snapshot.nodes     as LibNode[];
+        state.edges     = snapshot.edges     as LibEdge[];
+        state.subgraphs = snapshot.subgraphs as Record<string, SubgraphState>;
+      });
+    },
+
     // ── Subgraph / Module actions ────────────────────────────────────────
 
     wrapAsModule: (selectedNodeIds, name) => {
       set((state) => {
+        pushHistory(state);
         const ids = new Set(selectedNodeIds);
         // Deep-clone inner nodes so we can mutate _modulePortId without touching state
         const innerNodes = state.nodes

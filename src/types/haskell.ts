@@ -169,7 +169,7 @@ export function applySubst(subst: Subst, t: HaskellType): HaskellType {
 // ─── Type category (for wire/port colouring) ──────────────────────────────
 
 export type TypeCategory =
-  | 'int' | 'float' | 'bool' | 'string' | 'list' | 'fun' | 'unknown';
+  | 'int' | 'float' | 'bool' | 'string' | 'list' | 'fun' | 'tuple' | 'unknown';
 
 export function typeCategory(t: HaskellType): TypeCategory {
   switch (t.tag) {
@@ -179,9 +179,9 @@ export function typeCategory(t: HaskellType): TypeCategory {
     case 'String':  return 'string';
     case 'List':    return 'list';
     case 'Fun':     return 'fun';
+    case 'Tuple':   return 'tuple';
     case 'TypeVar': return 'unknown';
     case 'Unknown': return 'unknown';
-    case 'Tuple':   return 'unknown';
   }
 }
 
@@ -194,6 +194,7 @@ export function wireColor(t: HaskellType, compatible: boolean | null): string {
     case 'list':    return 'var(--color-wire-list)';
     case 'fun':     return 'var(--color-wire-fun)';
     case 'string':  return 'var(--color-wire-string)';
+    case 'tuple':   return 'var(--color-wire-tuple)';
     default:        return 'var(--color-wire-unknown)';
   }
 }

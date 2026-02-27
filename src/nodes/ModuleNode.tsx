@@ -26,9 +26,10 @@ function PortHandle({ nodeId, port }: { nodeId: string; port: Port }) {
         id={hId}
         type={isInput ? 'target' : 'source'}
         position={isInput ? Position.Left : Position.Right}
-        style={{ background: color, width: 10, height: 10, border: '2px solid rgba(255,255,255,0.6)' }}
+        style={{ background: color, width: 10, height: 10, border: '2px solid var(--handle-border)' }}
       />
-      <span className="text-xs text-gray-300 font-mono px-1 leading-none select-none">
+      <span className="text-xs font-mono px-1 leading-none select-none"
+            style={{ color: 'var(--port-label)' }}>
         {port.label}
       </span>
     </div>
@@ -45,7 +46,7 @@ export function ModuleNode({ data, selected }: NodeProps<LibNode>) {
     <div
       className={`rounded-lg shadow-md overflow-hidden border-2 transition-colors cursor-pointer
         ${selected ? 'border-white' : 'border-amber-600'}`}
-      style={{ minWidth: 160, background: '#1e2130' }}
+      style={{ minWidth: 160, background: 'var(--bg-node)' }}
       onDoubleClick={() => pushSubgraph(d.subgraphId)}
     >
       {/* Header */}
@@ -83,7 +84,7 @@ export function ModuleNode({ data, selected }: NodeProps<LibNode>) {
       </div>
 
       {/* Footer: "double-click to edit" hint */}
-      <div className="text-center text-slate-600 text-[9px] pb-0.5 select-none">
+      <div className="text-center text-[9px] pb-0.5 select-none" style={{ color: 'var(--text-faint)' }}>
         dbl-click to edit
       </div>
     </div>

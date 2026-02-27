@@ -75,5 +75,22 @@ export function evaluate(expr: ExprTree, env: Env = new Map(), steps = { n: 0 })
       }
       return current;
     }
+
+    case 'Letrec': {
+      // Recursive binding: bind name to a self-referential closure.
+      // Uses a mutable cell so the closure can refer to itself before
+      // its own value is fully computed — i.e. the JS-level fixed point.
+      // Safety: the existing MAX_STEPS budget prevents infinite loops.
+      const cell: { val: HaskellValue } = { val: VBottom };
+      const recEnv = new Map([
+        ...env,
+        [expr.name, VFun(arg => {
+          if (cell.val.tag !== 'VFun') return VError(`Letrec "${expr.name}": not a function`);
+          return cell.val.fn(arg);
+        })],
+      ]);
+      cell.val = evaluate(expr.body, recEnv, steps);
+      return cell.val;
+    }
   }
 }

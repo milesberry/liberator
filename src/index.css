@@ -1,16 +1,17 @@
 @import "tailwindcss";
 
 @layer base {
-  /* Wire / port type colours as CSS custom properties */
+  /* ─── Wire / port type colours ──────────────────────────────────────────── */
   :root {
-    --color-wire-int:     #3b82f6; /* blue */
-    --color-wire-float:   #60a5fa; /* light blue */
-    --color-wire-bool:    #22c55e; /* green */
-    --color-wire-list:    #a855f7; /* purple */
-    --color-wire-fun:     #f97316; /* orange */
-    --color-wire-string:  #eab308; /* yellow */
-    --color-wire-unknown: #6b7280; /* grey */
-    --color-wire-error:   #ef4444; /* red */
+    --color-wire-int:     #3b82f6;
+    --color-wire-float:   #60a5fa;
+    --color-wire-bool:    #22c55e;
+    --color-wire-list:    #a855f7;
+    --color-wire-fun:     #f97316;
+    --color-wire-string:  #eab308;
+    --color-wire-tuple:   #06b6d4;
+    --color-wire-unknown: #6b7280;
+    --color-wire-error:   #ef4444;
 
     font-family: system-ui, Helvetica, Arial, sans-serif;
     font-synthesis: none;
@@ -18,7 +19,70 @@
     -webkit-font-smoothing: antialiased;
   }
 
-  /* React Flow needs full height on the mounting elements */
+  /* ─── Dark theme (default) ───────────────────────────────────────────────── */
+  :root, [data-theme="dark"] {
+    --bg-app:        #020617;
+    --bg-toolbar:    #0f172a;
+    --bg-palette:    #1e293b;
+    --bg-canvas:     #111827;
+    --bg-panel:      #0f172a;
+    --bg-node:       #1e2130;
+    --bg-node-input: #1e293b;
+
+    --dot-color:     #4b5563;   /* clearly visible dots on dark canvas */
+    --border-subtle: #334155;
+    --border-input:  #475569;
+
+    --text-primary:  #f1f5f9;
+    --text-muted:    #94a3b8;
+    --text-faint:    #475569;
+
+    --ctrl-bg:       #1e293b;
+    --ctrl-border:   #475569;
+    --ctrl-icon:     #cbd5e1;
+    --ctrl-hover:    #334155;
+
+    --minimap-bg:    #1f2937;
+    --minimap-node:  #374151;
+    --minimap-mask:  rgba(0,0,0,0.5);
+
+    --handle-border: rgba(255,255,255,0.6);
+    --port-label:    #cbd5e1;
+    --color-result:  #6ee7b7;   /* emerald-300 — bright on dark bg */
+  }
+
+  /* ─── Light theme ────────────────────────────────────────────────────────── */
+  [data-theme="light"] {
+    --bg-app:        #f8fafc;
+    --bg-toolbar:    #ffffff;
+    --bg-palette:    #f1f5f9;
+    --bg-canvas:     #e2e8f0;
+    --bg-panel:      #ffffff;
+    --bg-node:       #ffffff;
+    --bg-node-input: #f1f5f9;
+
+    --dot-color:     #94a3b8;   /* clearly visible dots on light canvas */
+    --border-subtle: #cbd5e1;
+    --border-input:  #94a3b8;
+
+    --text-primary:  #0f172a;
+    --text-muted:    #475569;
+    --text-faint:    #94a3b8;
+
+    --ctrl-bg:       #ffffff;
+    --ctrl-border:   #cbd5e1;
+    --ctrl-icon:     #475569;
+    --ctrl-hover:    #f1f5f9;
+
+    --minimap-bg:    #f1f5f9;
+    --minimap-node:  #94a3b8;
+    --minimap-mask:  rgba(200,210,220,0.6);
+
+    --handle-border: rgba(0,0,0,0.35);
+    --port-label:    #334155;
+    --color-result:  #065f46;   /* emerald-900 — dark enough on light bg */
+  }
+
   html, body, #root {
     height: 100%;
     margin: 0;
@@ -26,15 +90,58 @@
   }
 }
 
-/* Selected node highlight — white glow.
-   React Flow adds .selected to its own wrapper div; we target the first child
-   (our rendered node div) via box-shadow so it shows even with overflow:hidden. */
+/* ─── Selected node highlight ─────────────────────────────────────────────── */
 .react-flow__node.selected > div {
-  box-shadow: 0 0 0 2px white, 0 0 10px 2px rgba(255, 255, 255, 0.2) !important;
+  box-shadow: 0 0 0 2px white, 0 0 10px 2px rgba(255,255,255,0.2) !important;
+}
+[data-theme="light"] .react-flow__node.selected > div {
+  box-shadow: 0 0 0 2px #1e40af, 0 0 10px 2px rgba(30,64,175,0.25) !important;
 }
 
-/* Remove React Flow's default blue focus outline */
+/* ─── Remove ReactFlow default blue outline ───────────────────────────────── */
 .react-flow__node:focus,
 .react-flow__node:focus-visible {
   outline: none !important;
+}
+
+/* ─── ReactFlow Controls — override built-in styles for contrast ─────────── */
+.react-flow__controls {
+  background: var(--ctrl-bg) !important;
+  border: 1px solid var(--ctrl-border) !important;
+  border-radius: 6px !important;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.4) !important;
+  overflow: hidden;
+}
+.react-flow__controls-button {
+  background: var(--ctrl-bg) !important;
+  border-bottom: 1px solid var(--ctrl-border) !important;
+  color: var(--ctrl-icon) !important;
+  fill: var(--ctrl-icon) !important;
+  width: 26px !important;
+  height: 26px !important;
+}
+.react-flow__controls-button:hover {
+  background: var(--ctrl-hover) !important;
+}
+.react-flow__controls-button svg {
+  fill: var(--ctrl-icon) !important;
+  max-width: 14px;
+  max-height: 14px;
+}
+.react-flow__controls-button:last-child {
+  border-bottom: none !important;
+}
+
+/* ─── ReactFlow attribution (bottom-left watermark) ─────────────────────── */
+.react-flow__attribution {
+  background: var(--ctrl-bg) !important;
+  color: var(--text-muted) !important;
+  border: 1px solid var(--ctrl-border) !important;
+  border-radius: 4px !important;
+  font-size: 9px !important;
+  padding: 2px 5px !important;
+  opacity: 0.8;
+}
+.react-flow__attribution a {
+  color: var(--text-muted) !important;
 }

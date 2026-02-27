@@ -4,7 +4,7 @@
 // IMPORTANT: nodeTypes and edgeTypes must be defined at module level (not inside
 // the component) to avoid React Flow re-rendering every node on every render.
 
-import { useCallback, useState } from 'react';
+import { useCallback, useState, useEffect } from 'react';
 import {
   ReactFlow, ReactFlowProvider,
   Background, Controls, MiniMap,
@@ -18,9 +18,10 @@ import '@xyflow/react/dist/style.css';
 import { ChevronRight, Package } from 'lucide-react';
 
 import { useGraphStore } from '../../store/graphStore';
-import { useUIStore }    from '../../store/uiStore';
+import { useUIStore, snapshotNodes } from '../../store/uiStore';
 import { findDefinition } from '../../nodes/registry';
 import { newId } from '../../utils/idGen';
+import { computeLayout } from '../../utils/layout';
 
 import { ValueNode }   from '../../nodes/ValueNode';
 import { PrimOpNode }  from '../../nodes/PrimOpNode';
@@ -31,7 +32,11 @@ import { IfNode }      from '../../nodes/IfNode';
 import { ApplyNode }   from '../../nodes/ApplyNode';
 import { OutputNode }  from '../../nodes/OutputNode';
 import { ModuleNode }  from '../../nodes/ModuleNode';
+import { CallNode }     from '../../nodes/CallNode';
+import { LetNode }      from '../../nodes/LetNode';
+import { ListCompNode } from '../../nodes/ListCompNode';
 import { WireEdge }    from './WireEdge';
+import { QuickAdd }    from './QuickAdd';
 import type { LibNode } from '../../types/nodes';
 import type { LibEdge } from '../../types/edges';
 
@@ -46,6 +51,9 @@ const NODE_TYPES: NodeTypes = {
   apply:   ApplyNode   as any,
   output:  OutputNode  as any,
   module:  ModuleNode  as any,
+  call:     CallNode     as any,
+  let:      LetNode      as any,
+  listcomp: ListCompNode as any,
 };
 
 const EDGE_TYPES: EdgeTypes = {
@@ -66,10 +74,12 @@ function BreadcrumbNav() {
 
   return (
     <div className="absolute top-0 left-0 right-0 z-10 flex items-center gap-1 px-3 py-1.5
-                    bg-slate-900/90 border-b border-amber-700 text-xs backdrop-blur-sm select-none">
+                    border-b border-amber-600 text-xs backdrop-blur-sm select-none"
+         style={{ background: 'var(--bg-toolbar)', color: 'var(--text-muted)' }}>
       <button
         onClick={() => { for (let i = 0; i < navStack.length; i++) popSubgraph(); }}
-        className="text-slate-400 hover:text-white transition-colors"
+        className="hover:text-amber-500 transition-colors"
+        style={{ color: 'var(--text-muted)' }}
       >
         root
       </button>
@@ -78,9 +88,9 @@ function BreadcrumbNav() {
         const label = nameFor(id);
         return (
           <span key={id} className="flex items-center gap-1">
-            <ChevronRight size={10} className="text-slate-600" />
+            <ChevronRight size={10} style={{ color: 'var(--text-faint)' }} />
             {isLast ? (
-              <span className="text-amber-400 flex items-center gap-1">
+              <span className="text-amber-500 flex items-center gap-1">
                 <Package size={10} />
                 {label}
               </span>
@@ -90,7 +100,8 @@ function BreadcrumbNav() {
                   const stepsBack = navStack.length - i - 1;
                   for (let j = 0; j < stepsBack; j++) popSubgraph();
                 }}
-                className="text-slate-400 hover:text-white transition-colors"
+                className="hover:text-amber-500 transition-colors"
+                style={{ color: 'var(--text-muted)' }}
               >
                 {label}
               </button>
@@ -101,8 +112,8 @@ function BreadcrumbNav() {
       <div className="flex-1" />
       <button
         onClick={popSubgraph}
-        className="text-slate-400 hover:text-amber-300 transition-colors text-[10px] border border-slate-700
-                   hover:border-amber-600 rounded px-2 py-0.5"
+        className="hover:text-amber-500 hover:border-amber-500 transition-colors text-[10px] rounded px-2 py-0.5"
+        style={{ color: 'var(--text-muted)', border: '1px solid var(--border-subtle)' }}
       >
         ← back
       </button>
@@ -159,23 +170,87 @@ function WrapModuleButton({ selectedIds }: { selectedIds: string[] }) {
 }
 
 // ─── Inner canvas — has access to ReactFlow context (useReactFlow) ─────────
-function CanvasInner() {
+interface CanvasInnerProps {
+  onRegisterTidyUp: (fn: () => void) => void;
+}
+
+function CanvasInner({ onRegisterTidyUp }: CanvasInnerProps) {
   const {
     nodes: rootNodes, edges: rootEdges,
     onNodesChange: rootOnNodesChange,
     onEdgesChange: rootOnEdgesChange,
     onConnect: rootOnConnect,
     addNode, subgraphs, activeSubgraphId,
-    setSubgraph,
+    setSubgraph, undo, redo, removeNodes, pasteNodes,
+    layoutNodes,
   } = useGraphStore();
-  const { setSelectedNodeId } = useUIStore();
-  const { screenToFlowPosition } = useReactFlow();
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const {
+    setSelectedNodeId,
+    selectedNodeIds, setSelectedNodeIds,
+    clipboard, setClipboard,
+    theme,
+  } = useUIStore();
+  const { screenToFlowPosition, fitView } = useReactFlow();
+  const [quickAddOpen, setQuickAddOpen] = useState(false);
+
+  // ── Global keyboard shortcuts ─────────────────────────────────────────────
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      // Don't fire shortcuts when typing inside an input/textarea
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+
+      const ctrl = e.ctrlKey || e.metaKey;
+      if (ctrl && e.key === 'z' && !e.shiftKey) { e.preventDefault(); undo(); return; }
+      if (ctrl && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) { e.preventDefault(); redo(); return; }
+      if (ctrl && e.key === 'k') { e.preventDefault(); setQuickAddOpen(true); return; }
+
+      if (ctrl && e.key === 'c') {
+        e.preventDefault();
+        const activeNodes = useGraphStore.getState().nodes; // root only for now
+        const ids = new Set(useUIStore.getState().selectedNodeIds);
+        if (ids.size > 0) setClipboard(snapshotNodes(activeNodes, ids));
+        return;
+      }
+      if (ctrl && e.key === 'x') {
+        e.preventDefault();
+        const activeNodes = useGraphStore.getState().nodes;
+        const ids = new Set(useUIStore.getState().selectedNodeIds);
+        if (ids.size > 0) {
+          setClipboard(snapshotNodes(activeNodes, ids));
+          removeNodes([...ids]);
+          setSelectedNodeIds([]);
+        }
+        return;
+      }
+      if (ctrl && e.key === 'v') {
+        e.preventDefault();
+        const cb = useUIStore.getState().clipboard;
+        if (cb && cb.length > 0) pasteNodes(cb);
+        return;
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [undo, redo, removeNodes, pasteNodes, setClipboard, setSelectedNodeIds]);
 
   // ── Choose which graph is active ──────────────────────────────────────────
   const subgraph = activeSubgraphId ? subgraphs[activeSubgraphId] : null;
   const activeNodes: LibNode[] = subgraph ? subgraph.nodes : rootNodes;
   const activeEdges: LibEdge[] = subgraph ? subgraph.edges : rootEdges;
+
+  // ── Tidy Up: DAG auto-layout + fitView ───────────────────────────────────
+  const handleTidyUp = useCallback(() => {
+    if (activeNodes.length === 0) return;
+    const positions = computeLayout(activeNodes, activeEdges);
+    layoutNodes(positions);
+    // Delay fitView slightly so React can flush the position updates first
+    setTimeout(() => fitView({ duration: 400, padding: 0.15 }), 50);
+  }, [activeNodes, activeEdges, layoutNodes, fitView]);
+
+  useEffect(() => {
+    onRegisterTidyUp(handleTidyUp);
+  }, [onRegisterTidyUp, handleTidyUp]);
 
   // ── Change handlers: route to root or active subgraph ────────────────────
   const onNodesChange: OnNodesChange<LibNode> = useCallback((changes) => {
@@ -249,22 +324,26 @@ function CanvasInner() {
   }, []);
 
   const onSelectionChange = useCallback(({ nodes }: { nodes: LibNode[] }) => {
-    setSelectedIds(nodes.map(n => n.id));
-  }, []);
+    setSelectedNodeIds(nodes.map(n => n.id));
+  }, [setSelectedNodeIds]);
 
   const onPaneClick = useCallback(() => {
     setSelectedNodeId(null);
-    setSelectedIds([]);
-  }, [setSelectedNodeId]);
+    setSelectedNodeIds([]);
+  }, [setSelectedNodeId, setSelectedNodeIds]);
 
   const onNodeClick = useCallback((_: React.MouseEvent, node: LibNode) => {
-    setSelectedNodeId(node.id);
+    // Toggle: clicking the already-selected node closes the panel
+    setSelectedNodeId(
+      useUIStore.getState().selectedNodeId === node.id ? null : node.id
+    );
   }, [setSelectedNodeId]);
 
   return (
     <div className="w-full h-full relative" onDrop={onDrop} onDragOver={onDragOver}>
+      <QuickAdd open={quickAddOpen} onClose={() => setQuickAddOpen(false)} />
       <BreadcrumbNav />
-      {!activeSubgraphId && <WrapModuleButton selectedIds={selectedIds} />}
+      {!activeSubgraphId && <WrapModuleButton selectedIds={selectedNodeIds} />}
       <ReactFlow
         nodes={activeNodes}
         edges={activeEdges}
@@ -278,6 +357,7 @@ function CanvasInner() {
         onPaneClick={onPaneClick}
         defaultEdgeOptions={{ type: 'lib' }}
         selectionOnDrag
+        deleteKeyCode={['Delete', 'Backspace']}
         multiSelectionKeyCode="Shift"
         panOnDrag={[1, 2]}
         panOnScroll
@@ -287,14 +367,19 @@ function CanvasInner() {
         zoomActivationKeyCode="Control"
         minZoom={0.2}
         maxZoom={2}
-        style={{ background: '#111827' }}
+        style={{ background: theme === 'dark' ? '#111827' : '#e2e8f0' }}
       >
-        <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="#374151" />
+        <Background
+          variant={BackgroundVariant.Dots}
+          gap={20}
+          size={1}
+          color={theme === 'dark' ? '#4b5563' : '#94a3b8'}
+        />
         <Controls />
         <MiniMap
-          nodeColor="#374151"
-          maskColor="rgba(0,0,0,0.5)"
-          style={{ background: '#1f2937' }}
+          nodeColor={theme === 'dark' ? '#374151' : '#94a3b8'}
+          maskColor={theme === 'dark' ? 'rgba(0,0,0,0.5)' : 'rgba(200,210,220,0.6)'}
+          style={{ background: theme === 'dark' ? '#1f2937' : '#f1f5f9' }}
         />
       </ReactFlow>
     </div>
@@ -302,10 +387,14 @@ function CanvasInner() {
 }
 
 // ─── Outer wrapper — provides the ReactFlow context ───────────────────────
-export function LiberatorCanvas() {
+interface LiberatorCanvasProps {
+  onRegisterTidyUp: (fn: () => void) => void;
+}
+
+export function LiberatorCanvas({ onRegisterTidyUp }: LiberatorCanvasProps) {
   return (
     <ReactFlowProvider>
-      <CanvasInner />
+      <CanvasInner onRegisterTidyUp={onRegisterTidyUp} />
     </ReactFlowProvider>
   );
 }
