@@ -81,16 +81,10 @@ const CUSTOM_BUILTINS: Record<string, CustomBuiltin> = {
 // Strip the __fn_<name>_ prefix and use the port label part, or fall back to p0/p1.
 
 function sanitiseVar(name: string): string {
-  // __fn_<funcName>_<portId>  →  use portId portion (after last _)
-  const fnMatch = name.match(/^__fn_[^_]+_(.+)$/);
-  if (fnMatch) {
-    // portId might be something like "in_abc123" — use prefix before _
-    const portPart = fnMatch[1].replace(/_[a-z0-9]{6,}$/, '');
-    // If it's still just "in" or "out", make it generic
-    return /^(in|out)$/.test(portPart) ? name.replace(/^__fn_[^_]+_/, 'p') : portPart;
-  }
-  // __p0 __p1 etc. (from buildPartialExpr)
-  if (name.startsWith('__p')) return name.slice(2); // p0, p1, ...
+  // __p0 __p1 etc. (from buildPartialExpr / PartialApp holes)
+  if (name.startsWith('__p')) return name.slice(2); // p0, p1, …
+  // All other names are already valid Haskell identifiers (labelToParamName
+  // guarantees this for module parameters; builtins/user vars are already clean)
   return name;
 }
 
@@ -131,11 +125,16 @@ function collectLetrecs(expr: ExprTree, seen: Set<string> = new Set()): Array<{ 
       }
       return result;
     }
-    case 'App':   return [...collectLetrecs(expr.fn, seen), ...collectLetrecs(expr.arg, seen)];
-    case 'Lam':   return collectLetrecs(expr.body, seen);
-    case 'If':    return [...collectLetrecs(expr.cond, seen), ...collectLetrecs(expr.thenE, seen), ...collectLetrecs(expr.elseE, seen)];
+    case 'App':      return [...collectLetrecs(expr.fn, seen), ...collectLetrecs(expr.arg, seen)];
+    case 'Lam':      return collectLetrecs(expr.body, seen);
+    case 'If':       return [...collectLetrecs(expr.cond, seen), ...collectLetrecs(expr.thenE, seen), ...collectLetrecs(expr.elseE, seen)];
     case 'PartialApp': return expr.args.flatMap(a => a ? collectLetrecs(a, seen) : []);
-    default:      return [];
+    case 'CaseList': return [
+      ...collectLetrecs(expr.scrutinee, seen),
+      ...collectLetrecs(expr.nilCase, seen),
+      ...collectLetrecs(expr.consCase, seen),
+    ];
+    default:         return [];
   }
 }
 
@@ -143,12 +142,13 @@ function collectLetrecs(expr: ExprTree, seen: Set<string> = new Set()): Array<{ 
 
 function collectBuiltins(expr: ExprTree, acc: Set<string> = new Set()): Set<string> {
   switch (expr.tag) {
-    case 'Builtin': acc.add(expr.name); break;
-    case 'App':     collectBuiltins(expr.fn, acc); collectBuiltins(expr.arg, acc); break;
-    case 'Lam':     collectBuiltins(expr.body, acc); break;
-    case 'If':      collectBuiltins(expr.cond, acc); collectBuiltins(expr.thenE, acc); collectBuiltins(expr.elseE, acc); break;
-    case 'Letrec':  collectBuiltins(expr.body, acc); break;
+    case 'Builtin':  acc.add(expr.name); break;
+    case 'App':      collectBuiltins(expr.fn, acc); collectBuiltins(expr.arg, acc); break;
+    case 'Lam':      collectBuiltins(expr.body, acc); break;
+    case 'If':       collectBuiltins(expr.cond, acc); collectBuiltins(expr.thenE, acc); collectBuiltins(expr.elseE, acc); break;
+    case 'Letrec':   collectBuiltins(expr.body, acc); break;
     case 'PartialApp': expr.args.forEach(a => a && collectBuiltins(a, acc)); break;
+    case 'CaseList': collectBuiltins(expr.scrutinee, acc); collectBuiltins(expr.nilCase, acc); collectBuiltins(expr.consCase, acc); break;
     default: break;
   }
   return acc;
@@ -263,6 +263,17 @@ function ppExpr(expr: ExprTree, prec: number, letrecNames: Set<string>): string 
         return prec > 0 ? `(${s})` : s;
       }
       return prec >= 10 ? `(${result})` : result;
+    }
+
+    case 'CaseList': {
+      // Emit: case <scrutinee> of { [] -> <nil>; (<h>:<t>) -> <cons> }
+      // Using explicit braces/semicolons so the expression is valid whether
+      // it appears inline (e.g. inside `print (...)`) or at the top level.
+      const scr  = ppExpr(expr.scrutinee, 0, letrecNames);
+      const nil  = ppExpr(expr.nilCase,   0, letrecNames);
+      const cons = ppExpr(expr.consCase,  0, letrecNames);
+      const s = `case ${scr} of { [] -> ${nil}; (${expr.headVar}:${expr.tailVar}) -> ${cons} }`;
+      return prec > 1 ? `(${s})` : s;
     }
   }
 }

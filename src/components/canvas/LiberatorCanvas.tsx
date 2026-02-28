@@ -34,8 +34,9 @@ import { OutputNode }  from '../../nodes/OutputNode';
 import { ModuleNode }  from '../../nodes/ModuleNode';
 import { CallNode }     from '../../nodes/CallNode';
 import { LetNode }      from '../../nodes/LetNode';
-import { ListCompNode } from '../../nodes/ListCompNode';
-import { WireEdge }    from './WireEdge';
+import { ListCompNode }  from '../../nodes/ListCompNode';
+import { MatchListNode } from '../../nodes/MatchListNode';
+import { WireEdge }     from './WireEdge';
 import { QuickAdd }    from './QuickAdd';
 import type { LibNode } from '../../types/nodes';
 import type { LibEdge } from '../../types/edges';
@@ -52,8 +53,9 @@ const NODE_TYPES: NodeTypes = {
   output:  OutputNode  as any,
   module:  ModuleNode  as any,
   call:     CallNode     as any,
-  let:      LetNode      as any,
-  listcomp: ListCompNode as any,
+  let:       LetNode      as any,
+  listcomp:  ListCompNode as any,
+  matchlist: MatchListNode as any,
 };
 
 const EDGE_TYPES: EdgeTypes = {
@@ -187,6 +189,7 @@ function CanvasInner({ onRegisterTidyUp }: CanvasInnerProps) {
   const {
     setSelectedNodeId,
     selectedNodeIds, setSelectedNodeIds,
+    setSelectedEdgeId,
     setClipboard,
     theme,
   } = useUIStore();
@@ -266,6 +269,11 @@ function CanvasInner({ onRegisterTidyUp }: CanvasInnerProps) {
   }, [activeSubgraphId, rootOnNodesChange, setSubgraph]);
 
   const onEdgesChange: OnEdgesChange<LibEdge> = useCallback((changes) => {
+    // Clear selectedEdgeId if the selected edge is being removed
+    const removedIds = changes.filter(c => c.type === 'remove').map(c => c.id);
+    if (removedIds.length > 0 && removedIds.includes(useUIStore.getState().selectedEdgeId ?? '')) {
+      setSelectedEdgeId(null);
+    }
     if (!activeSubgraphId) {
       rootOnEdgesChange(changes);
     } else {
@@ -274,7 +282,7 @@ function CanvasInner({ onRegisterTidyUp }: CanvasInnerProps) {
       const updated = applyEdgeChanges(changes, sub.edges) as LibEdge[];
       setSubgraph(activeSubgraphId, sub.nodes, updated);
     }
-  }, [activeSubgraphId, rootOnEdgesChange, setSubgraph]);
+  }, [activeSubgraphId, rootOnEdgesChange, setSubgraph, setSelectedEdgeId]);
 
   const onConnect: OnConnect = useCallback((connection) => {
     if (!activeSubgraphId) {
@@ -327,17 +335,24 @@ function CanvasInner({ onRegisterTidyUp }: CanvasInnerProps) {
     setSelectedNodeIds(nodes.map(n => n.id));
   }, [setSelectedNodeIds]);
 
+  const onEdgeClick = useCallback((_: React.MouseEvent, edge: LibEdge) => {
+    setSelectedEdgeId(edge.id);
+    setSelectedNodeId(null);
+  }, [setSelectedEdgeId, setSelectedNodeId]);
+
   const onPaneClick = useCallback(() => {
     setSelectedNodeId(null);
     setSelectedNodeIds([]);
-  }, [setSelectedNodeId, setSelectedNodeIds]);
+    setSelectedEdgeId(null);
+  }, [setSelectedNodeId, setSelectedNodeIds, setSelectedEdgeId]);
 
   const onNodeClick = useCallback((_: React.MouseEvent, node: LibNode) => {
     // Toggle: clicking the already-selected node closes the panel
     setSelectedNodeId(
       useUIStore.getState().selectedNodeId === node.id ? null : node.id
     );
-  }, [setSelectedNodeId]);
+    setSelectedEdgeId(null);
+  }, [setSelectedNodeId, setSelectedEdgeId]);
 
   return (
     <div className="w-full h-full relative" onDrop={onDrop} onDragOver={onDragOver}>
@@ -353,6 +368,7 @@ function CanvasInner({ onRegisterTidyUp }: CanvasInnerProps) {
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
         onNodeClick={onNodeClick}
+        onEdgeClick={onEdgeClick}
         onSelectionChange={onSelectionChange as any}
         onPaneClick={onPaneClick}
         defaultEdgeOptions={{ type: 'lib' }}

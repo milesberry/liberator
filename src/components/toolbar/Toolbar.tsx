@@ -21,6 +21,7 @@ export function Toolbar({ onTidyUp }: ToolbarProps) {
   const { nodes, edges, subgraphs, loadGraph: loadIntoStore, clearGraph } = useGraphStore();
   const { showHaskell, setShowHaskell, theme, setTheme } = useUIStore();
   const [showExamples, setShowExamples] = useState(false);
+  const [showHelp, setShowHelp] = useState(false);
   const [saveMsg, setSaveMsg]   = useState('');
   const [exportMsg, setExportMsg] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -202,24 +203,55 @@ export function Toolbar({ onTidyUp }: ToolbarProps) {
         {theme === 'dark' ? <Sun size={12} /> : <Moon size={12} />}
       </button>
 
-      {/* Getting-started guide */}
-      <button
-        onClick={() => window.open('https://github.com/milesberry/liberator/blob/main/docs/getting-started.md', '_blank')}
-        title="Getting started guide"
-        className="flex items-center gap-1.5 px-2 py-1 rounded text-xs font-medium transition-colors hover:text-white"
-        style={{ background: 'var(--ctrl-bg)', border: '1px solid var(--ctrl-border)', color: 'var(--text-muted)' }}
-        onMouseEnter={e => (e.currentTarget.style.background = 'var(--ctrl-hover)')}
-        onMouseLeave={e => (e.currentTarget.style.background = 'var(--ctrl-bg)')}
-      >
-        <HelpCircle size={12} />
-      </button>
+      {/* Help dropdown */}
+      <div className="relative">
+        <button
+          onClick={() => setShowHelp(v => !v)}
+          title="Help &amp; documentation"
+          className="flex items-center gap-1 px-2 py-1 rounded text-xs font-medium transition-colors"
+          style={{ background: 'var(--ctrl-bg)', border: '1px solid var(--ctrl-border)', color: 'var(--text-muted)' }}
+          onMouseEnter={e => (e.currentTarget.style.background = 'var(--ctrl-hover)')}
+          onMouseLeave={e => (e.currentTarget.style.background = 'var(--ctrl-bg)')}
+        >
+          <HelpCircle size={12} />
+          <ChevronDown size={10} className={`transition-transform ${showHelp ? 'rotate-180' : ''}`} />
+        </button>
+        {showHelp && (
+          <div className="absolute top-full right-0 mt-1 w-48 rounded shadow-xl z-50 overflow-hidden border"
+               style={{ background: 'var(--bg-panel)', borderColor: 'var(--border-subtle)' }}>
+            {[
+              { label: 'README',          url: 'https://github.com/milesberry/liberator/blob/main/README.md' },
+              { label: 'Getting Started', url: 'https://github.com/milesberry/liberator/blob/main/docs/getting-started.md' },
+            ].map(({ label, url }) => (
+              <button key={label}
+                onClick={() => { window.open(url, '_blank'); setShowHelp(false); }}
+                className="w-full text-left px-3 py-2 text-xs transition-colors border-b"
+                style={{ color: 'var(--text-primary)', borderColor: 'var(--border-subtle)' }}
+                onMouseEnter={e => (e.currentTarget.style.background = 'var(--ctrl-hover)')}
+                onMouseLeave={e => (e.currentTarget.style.background = '')}>
+                {label}
+              </button>
+            ))}
+            <button
+              onClick={() => { window.open('https://github.com/milesberry/liberator/blob/main/docs/colophon.md', '_blank'); setShowHelp(false); }}
+              className="w-full text-left px-3 py-2 text-xs transition-colors"
+              style={{ color: 'var(--text-primary)' }}
+              onMouseEnter={e => (e.currentTarget.style.background = 'var(--ctrl-hover)')}
+              onMouseLeave={e => (e.currentTarget.style.background = '')}>
+              About
+            </button>
+          </div>
+        )}
+      </div>
 
       <div className="flex-1" />
-      <span className="text-xs" style={{ color: 'var(--text-faint)' }}>Developed by Miles Berry</span>
 
-      {/* Close examples dropdown when clicking outside */}
+      {/* Close dropdowns when clicking outside */}
       {showExamples && (
         <div className="fixed inset-0 z-40" onClick={() => setShowExamples(false)} />
+      )}
+      {showHelp && (
+        <div className="fixed inset-0 z-40" onClick={() => setShowHelp(false)} />
       )}
     </div>
   );

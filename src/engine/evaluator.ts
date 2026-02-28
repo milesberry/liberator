@@ -4,7 +4,7 @@
 
 import type { ExprTree } from './toExprTree';
 import type { HaskellValue } from '../types/values';
-import { VFun, VError, VBottom, showValue } from '../types/values';
+import { VFun, VError, VBottom, VList, showValue } from '../types/values';
 import { builtins } from './builtins';
 
 type Env = Map<string, HaskellValue>;
@@ -91,6 +91,21 @@ export function evaluate(expr: ExprTree, env: Env = new Map(), steps = { n: 0 })
       ]);
       cell.val = evaluate(expr.body, recEnv, steps);
       return cell.val;
+    }
+
+    case 'CaseList': {
+      // case xs of { [] -> nilCase; (headVar:tailVar) -> consCase }
+      const xs = evaluate(expr.scrutinee, env, steps);
+      if (xs.tag === 'VError')  return xs;
+      if (xs.tag === 'VBottom') return VBottom;
+      if (xs.tag !== 'VList') return VError(`case: expected a list, got ${showValue(xs)}`);
+      if (xs.elements.length === 0) {
+        return evaluate(expr.nilCase, env, steps);
+      }
+      const consEnv = new Map(env);
+      consEnv.set(expr.headVar, xs.elements[0]);
+      consEnv.set(expr.tailVar, VList(xs.elements.slice(1)));
+      return evaluate(expr.consCase, consEnv, steps);
     }
   }
 }

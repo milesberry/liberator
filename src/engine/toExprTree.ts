@@ -2,11 +2,26 @@
 // Walks the node graph backwards from an OutputNode, building a lambda
 // calculus expression tree that the evaluator can reduce.
 
-import type { LibNode, ModuleNodeData, CallNodeData } from '../types/nodes';
+import type { LibNode, ModuleNodeData, CallNodeData, MatchListNodeData } from '../types/nodes';
 import type { LibEdge } from '../types/edges';
 import type { HaskellValue } from '../types/values';
 import { VInt, VFloat, VBool, VString, VList, VError } from '../types/values';
 import type { SubgraphState } from '../store/graphStore';
+
+// ─── Port label → Haskell identifier ──────────────────────────────────────
+// Converts a human-readable port label ("xs", "my list", "arg0") into a valid
+// Haskell variable identifier for use as a lambda parameter name.
+
+function labelToParamName(label: string, index: number): string {
+  // Keep letters, digits, apostrophes, underscores; replace everything else with _
+  const cleaned = label.trim().replace(/[^a-zA-Z0-9'_]/g, '_');
+  if (!cleaned) return `arg${index}`;
+  const first = cleaned[0];
+  // Must start with a lowercase letter or underscore
+  if (/[a-z_]/.test(first)) return cleaned;
+  if (/[A-Z]/.test(first)) return first.toLowerCase() + cleaned.slice(1);
+  return `p${cleaned}`; // starts with digit — prepend p
+}
 
 // ─── Expression tree ───────────────────────────────────────────────────────
 
@@ -19,6 +34,7 @@ export type ExprTree =
   | { tag: 'If';         cond: ExprTree; thenE: ExprTree; elseE: ExprTree }
   | { tag: 'PartialApp'; fn: ExprTree; args: Array<ExprTree | null> }
   | { tag: 'Letrec';     name: string; body: ExprTree }   // recursive binding
+  | { tag: 'CaseList';   scrutinee: ExprTree; nilCase: ExprTree; headVar: string; tailVar: string; consCase: ExprTree }
   | { tag: 'Err';        message: string };
 
 // ─── Build a section/partial-application expression ───────────────────────
@@ -150,8 +166,9 @@ function buildModuleExpr(
   const sub = outerCtx.subgraphs[md.subgraphId];
   if (!sub) return { tag: 'Err', message: `Function "${md.name}": subgraph not found` };
 
-  // Stable parameter names for each input port
-  const paramNames = md.inputPorts.map(p => `__fn_${md.name}_${p.id}`);
+  // Stable parameter names for each input port — use the human-readable label
+  // so the generated Haskell reads "sum' xs = …" not "sum' in_abc123 = …"
+  const paramNames = md.inputPorts.map((p, i) => labelToParamName(p.label, i));
 
   // Resolve the actual argument expressions from the outer call site
   const argExprs: Array<ExprTree | null> = md.inputPorts.map((port) =>
@@ -233,6 +250,15 @@ function buildExpr(nodeId: string, portId: string, ctx: BuildCtx): ExprTree {
   // Let param port: return the bound Var immediately
   if (node.data.kind === 'let' && portId === 'param') {
     return { tag: 'Var', name: node.data.varName };
+  }
+
+  // MatchList head/tail output ports: return bound Var immediately.
+  // These are handled before the cycle guard so that nodes wired to the
+  // head/tail outputs can reference them from inside the consCase expression
+  // without triggering a false cycle detection.
+  if (node.data.kind === 'matchlist' && (portId === 'head' || portId === 'tail')) {
+    const ml = node.data as MatchListNodeData;
+    return { tag: 'Var', name: portId === 'head' ? ml.headVar : ml.tailVar };
   }
 
   // Cycle guard
@@ -376,6 +402,35 @@ function buildExpr(nodeId: string, portId: string, ctx: BuildCtx): ExprTree {
         fn: { tag: 'App', fn: { tag: 'Builtin', name: 'map' }, arg: transform },
         arg: source,
       };
+      break;
+    }
+
+    case 'matchlist': {
+      // case xs of { [] -> nil; (headVar:tailVar) -> cons }
+      // The head/tail OUTPUT ports return Var(headVar)/Var(tailVar) via the
+      // early-return guard above. The cons input can wire back to those ports
+      // safely — they return immediately without hitting the cycle guard.
+      const ml = node.data as MatchListNodeData;
+      const scrutinee = inputExpr(nodeId, 'xs',   { ...ctx, visited: new Set(ctx.visited) });
+      const nilCase   = inputExpr(nodeId, 'nil',  { ...ctx, visited: new Set(ctx.visited) });
+      const consCase  = inputExpr(nodeId, 'cons', { ...ctx, visited: new Set(ctx.visited) });
+
+      if (!scrutinee) {
+        result = { tag: 'Err', message: 'match: list input (xs) not connected' };
+      } else if (!nilCase) {
+        result = { tag: 'Err', message: 'match: nil case not connected' };
+      } else if (!consCase) {
+        result = { tag: 'Err', message: 'match: cons case not connected' };
+      } else {
+        result = {
+          tag: 'CaseList',
+          scrutinee,
+          nilCase,
+          headVar: ml.headVar,
+          tailVar: ml.tailVar,
+          consCase,
+        };
+      }
       break;
     }
 

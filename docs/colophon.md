@@ -45,12 +45,12 @@ A rough accounting of the responsibilities:
 | **Feature specification** | ✓ | |
 | **UI / UX decisions** | ✓ | |
 | **Testing & bug reports** | ✓ | |
-| **Documentation & screenshots** | shared | shared |
 | **React / TypeScript implementation** | | ✓ |
 | **Haskell evaluator & type checker** | | ✓ |
 | **Graph layout algorithm** | | ✓ |
 | **Store architecture (Zustand/Immer)** | | ✓ |
 | **Bug diagnosis & fixes** | shared | shared |
+| **Documentation & screenshots** | shared | shared |
 
 Architecturally significant decisions made during development include:
 
@@ -86,13 +86,30 @@ Architecturally significant decisions made during development include:
 
 ---
 
+## Inspiration
+
+Liberator sits in a longer tradition of visual functional programming environments for education.
+
+**[Logotron Numerator](https://www.jstor.org/stable/30215030)** (1989) for the
+Acorn Archimedes was an early visual environment for functional programming in schools, developed
+by Logotron. Students could build functional programs by connecting boxes on screen — a direct
+ancestor of the idea behind Liberator.
+
+![Numerator screenshot](img/numerator.png)
+
+**[Viskell](https://github.com/viskell/viskell)** is a more recent visual Haskell environment
+that takes a similar approach for a general audience, demonstrating that node-and-wire interfaces
+for functional languages remain a compelling research direction.
+
+---
+
 ## Acknowledgements
 
 The built-in examples draw on classic functional programming exercises, including several
 problems from [Project Euler](https://projecteuler.net) and sorting algorithms from standard
 introductory Haskell texts.
 
-The AQA A-Level Computer Science specification provided the curriculum framework that shaped
+The [AQA A-Level Computer Science specification](https://www.aqa.org.uk/subjects/computer-science/a-level/computer-science-7517/specification) provided the curriculum framework that shaped
 which features to build first and which to leave for later.
 
 ---

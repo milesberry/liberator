@@ -54,6 +54,11 @@ export const builtins: Record<string, HaskellValue> = {
   '+':      numOp((a, b) => a + b),
   '-':      numOp((a, b) => a - b),
   '*':      numOp((a, b) => a * b),
+  '/':      VFun(a => VFun(b => {
+    if (!isNumeric(a) || !isNumeric(b)) return VError(`(/): expected numbers, got ${showValue(a)} and ${showValue(b)}`);
+    if (toNumber(b) === 0) return VError('divide by zero');
+    return VFloat(toNumber(a) / toNumber(b));
+  })),
   'div':    VFun(a => VFun(b => {
     if (a.tag !== 'VInt' || b.tag !== 'VInt') return VError('div requires Int');
     if (b.value === 0) return VError('divide by zero');

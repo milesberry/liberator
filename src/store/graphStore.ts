@@ -9,7 +9,7 @@ import {
   type OnNodesChange, type OnEdgesChange, type OnConnect,
   type Connection, type XYPosition,
 } from '@xyflow/react';
-import type { LibNode, ModuleNodeData, Port } from '../types/nodes';
+import type { LibNode, ModuleNodeData, CallNodeData, Port } from '../types/nodes';
 import type { LibEdge } from '../types/edges';
 import { defaultEdgeData } from '../types/edges';
 import { createNode } from '../nodes/registry';
@@ -29,6 +29,139 @@ interface GraphSnapshot {
   nodes: LibNode[];
   edges: LibEdge[];
   subgraphs: Record<string, SubgraphState>;
+}
+
+// ─── Module sync helper ────────────────────────────────────────────────────
+// Re-derives a module node's inputPorts / outputPorts from its subgraph's
+// anchor nodes. Call this inside an Immer set() whenever the user leaves a
+// subgraph so the outer module chip reflects any edits made inside.
+//
+// Anchor convention (set by wrapAsModule):
+//   Input  anchors: kind='value',  literal='__module_input__', _modulePortId=<portId>
+//   Output anchors: kind='output', _modulePortId=<portId>
+//
+// If a plain Output node exists without _modulePortId it was added after
+// wrapping — we promote it to a new output port automatically.
+function syncModuleNodeInState(state: GraphState, subgraphId: string): void {
+  const sub = state.subgraphs[subgraphId];
+  if (!sub) return;
+
+  // ── Find the parent graph that owns the module node ──────────────────────
+  let moduleNode: LibNode | undefined;
+  let parentKey = '';            // '' = root, else a subgraphId
+
+  moduleNode = state.nodes.find(
+    n => n.data.kind === 'module' && (n.data as ModuleNodeData).subgraphId === subgraphId
+  );
+  if (!moduleNode) {
+    for (const key of Object.keys(state.subgraphs)) {
+      const found = state.subgraphs[key].nodes.find(
+        n => n.data.kind === 'module' && (n.data as ModuleNodeData).subgraphId === subgraphId
+      );
+      if (found) { moduleNode = found; parentKey = key; break; }
+    }
+  }
+  if (!moduleNode) return;
+
+  const md = moduleNode.data as ModuleNodeData;
+
+  // ── Rebuild input ports from input anchor nodes ───────────────────────────
+  const newInputPorts: Port[] = sub.nodes
+    .filter(n =>
+      n.data.kind === 'value' &&
+      (n.data as any).literal === '__module_input__' &&
+      (n.data as any)._modulePortId
+    )
+    .map(n => {
+      const d = n.data as any;
+      const resultPort = (d.ports as Port[] | undefined)?.find(p => p.id === 'result');
+      const existing   = md.inputPorts.find(p => p.id === d._modulePortId);
+      return {
+        id:        d._modulePortId as string,
+        label:     resultPort?.label ?? existing?.label ?? 'in',
+        direction: 'input'  as const,
+        type:      resultPort?.type  ?? existing?.type  ?? TUnknown,
+        connected: existing?.connected ?? false,
+      };
+    });
+
+  // ── Rebuild output ports from tagged output anchor nodes ──────────────────
+  const newOutputPorts: Port[] = sub.nodes
+    .filter(n => n.data.kind === 'output' && (n.data as any)._modulePortId)
+    .map(n => {
+      const d         = n.data as any;
+      const valuePort = (d.ports as Port[] | undefined)?.find(p => p.id === 'value');
+      const existing  = md.outputPorts.find(p => p.id === d._modulePortId);
+      return {
+        id:        d._modulePortId as string,
+        label:     d.label ?? existing?.label ?? 'out',
+        direction: 'output' as const,
+        type:      valuePort?.type ?? existing?.type ?? TUnknown,
+        connected: existing?.connected ?? false,
+      };
+    });
+
+  // ── Promote untagged output nodes added after wrapping ────────────────────
+  for (const node of sub.nodes) {
+    if (node.data.kind === 'output' && !(node.data as any)._modulePortId) {
+      const portId    = `out_${newId()}`;
+      const d         = node.data as any;
+      const valuePort = (d.ports as Port[] | undefined)?.find((p: Port) => p.id === 'value');
+      d._modulePortId = portId;
+      newOutputPorts.push({
+        id:        portId,
+        label:     d.label ?? 'out',
+        direction: 'output',
+        type:      valuePort?.type ?? TUnknown,
+        connected: false,
+      });
+    }
+  }
+
+  // ── Detect port IDs that disappeared → prune stale outer edges ───────────
+  const newPortIds   = new Set([...newInputPorts, ...newOutputPorts].map(p => p.id));
+  const stalePortIds = new Set(
+    [...md.inputPorts, ...md.outputPorts]
+      .map(p => p.id)
+      .filter(id => !newPortIds.has(id))
+  );
+
+  // ── Write updated ports back to the module node (Immer-mutable) ──────────
+  md.inputPorts  = newInputPorts;
+  md.outputPorts = newOutputPorts;
+  md.ports       = [...newInputPorts, ...newOutputPorts];
+
+  // ── Prune stale edges in the parent graph ─────────────────────────────────
+  if (stalePortIds.size > 0) {
+    const isStale = (e: LibEdge): boolean => {
+      const srcPort = e.sourceHandle ? e.sourceHandle.split('__')[1] : '';
+      const tgtPort = e.targetHandle ? e.targetHandle.split('__')[1] : '';
+      return stalePortIds.has(srcPort) || stalePortIds.has(tgtPort);
+    };
+    if (parentKey === '') {
+      state.edges = state.edges.filter(e => !isStale(e)) as typeof state.edges;
+    } else {
+      state.subgraphs[parentKey].edges =
+        state.subgraphs[parentKey].edges.filter(e => !isStale(e));
+    }
+  }
+
+  // ── Refresh every Call node that references this module by name ───────────
+  // This means navigating back out is the only step needed — no manual
+  // re-selection of the function to pick up port changes.
+  const freshPorts = [...newInputPorts, ...newOutputPorts];
+  const moduleName = md.name;
+
+  function refreshCallNode(node: LibNode) {
+    if (node.data.kind !== 'call') return;
+    const cd = node.data as CallNodeData;
+    if (cd.targetName !== moduleName) return;
+    cd.ports = freshPorts.map(p => ({ ...p, connected: false }));
+  }
+
+  for (const node of state.nodes)  refreshCallNode(node);
+  for (const sub of Object.values(state.subgraphs))
+    for (const node of sub.nodes) refreshCallNode(node);
 }
 
 // Helper: push current state onto the undo stack and clear redo.
@@ -79,6 +212,7 @@ interface GraphState {
   wrapAsModule: (selectedNodeIds: string[], name: string) => void;
   setSubgraph: (subgraphId: string, nodes: LibNode[], edges: LibEdge[]) => void;
   getSubgraph: (subgraphId: string) => SubgraphState | undefined;
+  syncModuleNode: (subgraphId: string) => void;
 
   // Nav: which graph is shown on canvas ('' = root, else subgraphId)
   activeSubgraphId: string;
@@ -489,9 +623,16 @@ export const useGraphStore = create<GraphState>()(
 
     popSubgraph: () => {
       set((state) => {
+        const leavingId = state.activeSubgraphId;
         state.navStack.pop();
         state.activeSubgraphId = state.navStack[state.navStack.length - 1] ?? '';
+        // Sync the module node's ports before the parent graph becomes visible
+        if (leavingId) syncModuleNodeInState(state, leavingId);
       });
+    },
+
+    syncModuleNode: (subgraphId) => {
+      set((state) => { syncModuleNodeInState(state, subgraphId); });
     },
   }))
 );
