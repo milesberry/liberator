@@ -601,6 +601,11 @@ export const useGraphStore = create<GraphState>()(
 
         state.nodes = [...outerNodes, moduleNode] as LibNode[];
         state.edges = [...outerEdges, ...extraOuterEdges];
+
+        // Immediately sync so any Call node already bearing this function name
+        // (typed in before wrapping) gets its ports without requiring a
+        // navigate-out / navigate-in dance — inspired by Snap!'s Apply button.
+        syncModuleNodeInState(state, subgraphId);
       });
     },
 
