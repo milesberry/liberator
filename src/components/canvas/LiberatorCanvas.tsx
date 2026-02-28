@@ -15,7 +15,7 @@ import {
   type OnNodesChange, type OnEdgesChange, type OnConnect,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { ChevronRight, Package } from 'lucide-react';
+import { ChevronRight, Package, RefreshCw } from 'lucide-react';
 
 import { useGraphStore } from '../../store/graphStore';
 import { useUIStore, snapshotNodes } from '../../store/uiStore';
@@ -64,7 +64,8 @@ const EDGE_TYPES: EdgeTypes = {
 
 // ─── Breadcrumb navigation bar ─────────────────────────────────────────────
 function BreadcrumbNav() {
-  const { navStack, popSubgraph, nodes: rootNodes } = useGraphStore();
+  const { navStack, popSubgraph, syncModuleNode, activeSubgraphId, nodes: rootNodes } = useGraphStore();
+  const [applyFlash, setApplyFlash] = useState(false);
   if (navStack.length === 0) return null;
 
   function nameFor(subgraphId: string): string {
@@ -73,6 +74,12 @@ function BreadcrumbNav() {
     );
     return mod ? (mod.data as { name: string }).name : subgraphId.slice(0, 6);
   }
+
+  const handleApply = () => {
+    if (activeSubgraphId) syncModuleNode(activeSubgraphId);
+    setApplyFlash(true);
+    setTimeout(() => setApplyFlash(false), 1200);
+  };
 
   return (
     <div className="absolute top-0 left-0 right-0 z-10 flex items-center gap-1 px-3 py-1.5
@@ -112,6 +119,19 @@ function BreadcrumbNav() {
         );
       })}
       <div className="flex-1" />
+      {/* Apply — sync module ports + refresh Call nodes without navigating out */}
+      <button
+        onClick={handleApply}
+        title="Sync this module's ports and update all Call nodes that reference it — no need to navigate out"
+        className="flex items-center gap-1 transition-colors text-[10px] rounded px-2 py-0.5 mr-1"
+        style={{
+          color: applyFlash ? '#f59e0b' : 'var(--text-muted)',
+          border: `1px solid ${applyFlash ? '#f59e0b' : 'var(--border-subtle)'}`,
+        }}
+      >
+        <RefreshCw size={10} className={applyFlash ? 'text-amber-400' : ''} />
+        {applyFlash ? 'Applied!' : 'Apply'}
+      </button>
       <button
         onClick={popSubgraph}
         className="hover:text-amber-500 hover:border-amber-500 transition-colors text-[10px] rounded px-2 py-0.5"
