@@ -90,16 +90,33 @@ Architecturally significant decisions made during development include:
 
 Liberator sits in a longer tradition of visual functional programming environments for education.
 
-**[Logotron Numerator](https://www.jstor.org/stable/30215030)** (1989) for the
-Acorn Archimedes was an early visual environment for functional programming in schools, developed
-by Logotron. Students could build functional programs by connecting boxes on screen — a direct
-ancestor of the idea behind Liberator.
+**[Logotron Numerator](https://www.jstor.org/stable/30215030)** (1989) for the Acorn Archimedes
+was an early visual environment for functional programming in schools, developed by Logotron.
+Students could build functional programs by connecting boxes on screen — a direct ancestor of the
+idea behind Liberator.
 
 ![Numerator screenshot](img/numerator.png)
 
-**[Viskell](https://github.com/viskell/viskell)** is a more recent visual Haskell environment
-that takes a similar approach for a general audience, demonstrating that node-and-wire interfaces
-for functional languages remain a compelling research direction.
+**[Visual Haskell](https://ptolemy.berkeley.edu/~johnr/papers/visual.html)** (Reekie, 1994) was the first attempt to give Haskell itself a graphical syntax,
+representing functions as enclosing boxes and data flow as directed arrows — naming a research
+direction that has continued ever since.
+
+**[Viskell](https://github.com/viskell/viskell)** (University of Twente, 2015) is a visual Haskell
+environment with a multi-touch interface and live type feedback on connections, demonstrating that
+node-and-wire interfaces for functional languages remain a compelling research direction.
+
+**[Snap!](https://snap.berkeley.edu/)** (Harvey and Mönig) is a block-based language that takes
+functional programming seriously: procedures are first-class values, higher-order functions such
+as `map` and `combine` are built in, and custom blocks support full recursion — including
+recursive calls within their own definitions. Snap! demonstrates that blocks and genuine
+functional thinking are not in tension, and that recursion need not be hidden from learners.
+
+**[A Block Design for Introductory Functional Programming in Haskell](https://doi.org/10.1109/BB48857.2019.8941214)** (Poole, 2019) explored using
+colour and block shape to make Haskell's type system visible to learners — the wire colouring in
+Liberator is in the same spirit.
+
+Work in this area continues: **[the MNL](https://dl.acm.org/doi/10.1145/3759534.3762684)**
+(Lolong, 2025) introduces reactive blocks with real-time type feedback for novice programmers.
 
 ---
 
