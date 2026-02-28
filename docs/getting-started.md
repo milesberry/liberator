@@ -312,12 +312,11 @@ sum' [] = 0
 sum' xs = head xs + sum' (tail xs)
 ```
 
-Recursive functions are built by **wrapping** nodes into a named module, exactly as in
-section 8b. Because this version uses three separate nodes (`null`, `head`, `tail`) that all
-need the same `xs` input, wrapping creates extra anchor nodes that need tidying — the same
-two-pass approach applies.
+Recursive functions are built by **wrapping** nodes into a named module. As soon as the
+module chip appears, any Call node already bearing its name receives its ports automatically —
+so you only need **one visit inside** to tidy up and finish wiring.
 
-### Pass 1 — build, wire, and wrap
+### Build, wire, and wrap
 
 **Step 1.** Drag seven nodes:
 
@@ -344,35 +343,33 @@ Leave null, head, and tail **xs** inputs unconnected.
 
 **Step 3.** Select all seven nodes and click **Wrap as function**, name it `sum'`.
 
-The module appears with **four anchor nodes** inside: three labelled `xs` (one each for
-null, head, and tail) and one labelled `y` (for the unconnected `+` input).
+The module chip appears. Inside it there are **four anchor nodes**: three labelled `xs`
+(one each for null, head, and tail) and one labelled `y` (for the unconnected `+` input).
+The Call node already has its ports at this point.
 
-### Pass 2 — clean up anchors and complete
+### Inside — tidy, Apply, wire
 
 **Step 4.** Double-click the module to enter its subgraph.
 
 Delete two of the three `xs` anchors and the `y` anchor — keep just one `xs` anchor.
-That anchor is already wired to whichever of null/head/tail it was created for; now also
-wire it to the other two:
+Wire it to the nodes that lost theirs:
 - `xs` anchor → null **xs**
 - `xs` anchor → head **xs**
 - `xs` anchor → tail **xs**
 
-**Step 5.** Navigate back out. The module now has a single `xs` input, and the Call node
-auto-refreshes with its ports.
+**Step 5.** Click **Apply** in the breadcrumb bar. The module updates to a single `xs`
+input port and the Call node refreshes.
 
-**Step 6.** Double-click to re-enter the subgraph.
-
-**Step 7.** Wire the final connection:
+**Step 6.** Wire the final connection:
 - Call **sum** (output) → `+` **y**
 
-**Step 8.** Navigate back out.
+**Step 7.** Navigate back out.
 
 ![Recursive sum using if](img/8b-if-sum.png)
 
 ### Testing
 
-**Step 9.** On the outer canvas:
+**Step 8.** On the outer canvas:
 - **Value** `[1,2,3,4,5]` → module **xs**
 - module **sum** → **Output**
 
@@ -396,10 +393,7 @@ sum' [] = 0
 sum' (x:xs) = x + sum' xs
 ```
 
-Building a recursive function this way needs **two short passes** inside the module — once
-to create it (so the Call node can resolve its ports), then once to finish the wiring.
-
-### Pass 1 — build, wire, and wrap
+### Build, wire, and wrap
 
 **Step 1.** Drag five nodes onto the canvas:
 
@@ -422,32 +416,27 @@ Leave **case xs** and **Add b** unconnected — both will be wired inside the mo
 **Step 3.** Select all five nodes and click **Wrap as function** at the bottom of the canvas.
 Name it `sum'`.
 
-The module chip appears with **two input ports** (`xs` and `y`) and one output port.
-The `y` port is a placeholder created because **Add b** had no connection yet;
-it will be removed in the next step.
+The module chip appears with two anchor nodes inside (`xs` and `y`). The `y` anchor is a
+placeholder for the unconnected **Add b** port. The Call node already has its ports.
 
-### Pass 2 — clean up and complete
+### Inside — tidy, Apply, wire
 
 **Step 4.** Double-click the module chip to enter its subgraph.
 
-You will see two **anchor nodes** on the left — one labelled `xs` and one labelled `y`.
 Select the **`y` anchor** and delete it.
 
-**Step 5.** Click the breadcrumb to navigate **back out**.
-The module now has a single `xs` input port, and the Call node inside
-automatically picks up its correct ports (one input `xs`, one output `sum`).
+**Step 5.** Click **Apply** in the breadcrumb bar. The module updates to a single `xs`
+input port and the Call node refreshes.
 
-**Step 6.** Double-click to re-enter the subgraph.
-
-**Step 7.** Complete the recursive wiring:
+**Step 6.** Complete the recursive wiring:
 - case **tail** (xs') → Call **xs**
 - Call **sum** (output) → Add **b**
 
-**Step 8.** Navigate back out.
+**Step 7.** Navigate back out.
 
 ### Testing
 
-**Step 9.** On the outer canvas:
+**Step 8.** On the outer canvas:
 - **Value** `7` → **range** → module **xs**
 - module **sum** → **Output**
 
@@ -460,10 +449,6 @@ The Haskell panel shows:
 ```haskell
 sum' xs = case xs of { [] -> 0; (x:xs') -> x + sum' xs' }
 ```
-
-> **Why two passes?** The Call node can only get its output port once the module already
-> exists. The first pass creates the module; navigating out triggers an automatic sync that
-> gives the Call its output port. The second pass wires that port into Add **b**.
 
 ---
 
