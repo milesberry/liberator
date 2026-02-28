@@ -2,6 +2,8 @@
 
 A drag-and-drop visual programming environment for Haskell, designed for teaching AQA A-Level Computer Science. Build programs by connecting nodes on a canvas instead of writing text — then evaluate them live to see results.
 
+It runs in the browser, with nothing to download, and no log-in required. [milesberry.net/liberator](https://milesberry.net/liberator)
+
 ---
 
 ## What it does
