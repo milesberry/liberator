@@ -16,7 +16,7 @@ export interface Port {
 
 // ─── Primitive operation types ─────────────────────────────────────────────
 export type PrimOp =
-  | '+' | '-' | '*' | 'div' | 'mod'
+  | '+' | '-' | '*' | '/' | 'div' | 'mod'
   | '==' | '/=' | '<' | '>' | '<=' | '>='
   | '&&' | '||' | 'not'
   | 'negate' | 'abs';
@@ -119,6 +119,15 @@ export interface ListCompNodeData {
   [key: string]: unknown;
 }
 
+export interface MatchListNodeData {
+  kind: 'matchlist';
+  // case xs of { [] -> nil; (headVar:tailVar) -> cons }
+  headVar: string;    // variable name for the matched head element, e.g. 'x'
+  tailVar: string;    // variable name for the matched tail list, e.g. "xs'"
+  ports: Port[];      // 'xs' input, 'nil' input, 'cons' input, 'head' output, 'tail' output, 'result' output
+  [key: string]: unknown;
+}
+
 // ─── Discriminated union ───────────────────────────────────────────────────
 
 export type LibNodeData =
@@ -133,7 +142,8 @@ export type LibNodeData =
   | ModuleNodeData
   | CallNodeData
   | LetNodeData
-  | ListCompNodeData;
+  | ListCompNodeData
+  | MatchListNodeData;
 
 // React Flow typed node
 export type LibNode = Node<LibNodeData>;

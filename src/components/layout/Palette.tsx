@@ -3,7 +3,7 @@
 
 import { useState } from 'react';
 import { Search } from 'lucide-react';
-import { NODE_REGISTRY, CATEGORY_LABELS, groupByCategory, type NodeDefinition } from '../../nodes/registry';
+import { NODE_REGISTRY, CATEGORY_LABELS, CATEGORY_ORDER, groupByCategory, type NodeDefinition } from '../../nodes/registry';
 
 function PaletteItem({ def }: { def: NodeDefinition }) {
   const onDragStart = (e: React.DragEvent<HTMLDivElement>) => {
@@ -71,7 +71,8 @@ export function Palette() {
             {filtered.map(def => <PaletteItem key={`${def.kind}-${def.subtype}`} def={def} />)}
           </div>
         ) : (
-          Array.from(grouped.entries()).map(([cat, defs]) => (
+          CATEGORY_ORDER.filter(cat => grouped.has(cat)).map(cat => {
+            const defs = grouped.get(cat)!; return (
             <details key={cat} open className="mb-1">
               <summary className="text-xs font-semibold uppercase tracking-wider px-2 py-1 cursor-pointer select-none"
                        style={{ color: 'var(--text-muted)' }}>
@@ -81,7 +82,7 @@ export function Palette() {
                 {defs.map(def => <PaletteItem key={`${def.kind}-${def.subtype}`} def={def} />)}
               </div>
             </details>
-          ))
+          ); })
         )}
       </div>
 

@@ -132,6 +132,17 @@ const arithmeticNodes: NodeDefinition[] = [
   arithOp('-', 'Subtract (-)', 'x - y :: Num a => a → a → a'),
   arithOp('*', 'Multiply (*)', 'x * y :: Num a => a → a → a'),
   {
+    kind: 'primop', subtype: '/', label: 'Divide (/)', category: 'arithmetic',
+    description: '(/) :: Fractional a => a → a → Float  — works with Int or Float; always returns Float',
+    makeData: (id) => {
+      const a = freshVar('a', id);
+      return {
+        kind: 'primop', op: '/' as PrimOp,
+        ports: [inp('arg0', 'x', a), inp('arg1', 'y', a), out('result', 'result', TFloat)],
+      };
+    },
+  },
+  {
     kind: 'primop', subtype: 'div', label: 'Div (÷)', category: 'arithmetic',
     description: 'Integer division: div x y :: Int → Int → Int',
     makeData: () => ({
@@ -267,6 +278,32 @@ const listNodes: NodeDefinition[] = [
     const a = freshVar('a', id);
     return [inp('list', 'xs', TList(a)), out('result', 'result', TList(a))];
   }),
+  // ── List pattern match ────────────────────────────────────────────────────
+  {
+    kind: 'matchlist', label: 'case [ ] of', category: 'control',
+    description: 'List pattern match: [] base case and (x:xs) recursive case.\n' +
+      'Connect xs → the list to inspect.\n' +
+      'Connect [] → the value to return when the list is empty.\n' +
+      'Connect x:xs → the value to return for a non-empty list;\n' +
+      '  wire the head and tail outputs into that expression.',
+    makeData: (id) => {
+      const a = freshVar('a', id);
+      const b = freshVar('b', id);
+      return {
+        kind: 'matchlist',
+        headVar: 'x',
+        tailVar: "xs'",
+        ports: [
+          inp('xs',     'xs',    TList(a)),   // the list to match on
+          inp('nil',    '[]',    b),           // result when list is empty
+          inp('cons',   'x:xs',  b),           // result for non-empty list
+          out('head',   'head',  a),           // bound head variable
+          out('tail',   'tail',  TList(a)),    // bound tail variable
+          out('result', 'result', b),          // the case expression result
+        ],
+      };
+    },
+  },
 ];
 
 // ─── Higher-order function nodes ───────────────────────────────────────────
@@ -608,15 +645,31 @@ export function groupByCategory(): Map<PaletteCategory, NodeDefinition[]> {
 
 export const CATEGORY_LABELS: Record<PaletteCategory, string> = {
   values:         'Values',
+  io:             'Output',
   arithmetic:     'Arithmetic',
   comparison:     'Comparison',
+  control:        'Control',
   logic:          'Logic',
   lists:          'Lists',
   'higher-order': 'Higher-Order',
   utilities:      'Utilities',
   tuples:         'Tuples',
   strings:        'Strings',
-  control:        'Control',
-  io:             'Input / Output',
   modules:        'Functions',
 };
+
+// Explicit display order for the palette
+export const CATEGORY_ORDER: PaletteCategory[] = [
+  'values',
+  'io',
+  'arithmetic',
+  'comparison',
+  'control',
+  'logic',
+  'lists',
+  'higher-order',
+  'utilities',
+  'tuples',
+  'strings',
+  'modules',
+];

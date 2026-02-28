@@ -1,12 +1,12 @@
 // ─── Properties Panel ──────────────────────────────────────────────────────
-// Right sidebar. Shows info about the selected node: description, port labels
-// (editable), and a Delete button.
+// Right sidebar. Shows info about the selected node or edge.
 
 import { Trash2 } from 'lucide-react';
 import { useUIStore }   from '../../store/uiStore';
 import { useGraphStore } from '../../store/graphStore';
+import { useTypeStore }  from '../../store/typeStore';
 import { findDefinition } from '../../nodes/registry';
-import { wireColor } from '../../types/haskell';
+import { wireColor, showType, TUnknown } from '../../types/haskell';
 import type { LibNodeData, Port } from '../../types/nodes';
 
 // ─── Port label row ────────────────────────────────────────────────────────
@@ -24,7 +24,7 @@ function PortRow({ port, onRename }: PortRowProps) {
       <span
         className="w-2.5 h-2.5 rounded-full flex-shrink-0 border border-white/20"
         style={{ background: color }}
-        title={String(port.type?.tag ?? '?')}
+        title={showType(port.type)}
       />
       <input
         value={port.label}
@@ -41,11 +41,102 @@ function PortRow({ port, onRename }: PortRowProps) {
   );
 }
 
+// ─── Edge properties ───────────────────────────────────────────────────────
+
+function EdgeProperties({ edgeId }: { edgeId: string }) {
+  const info = useTypeStore(s => s.checkedEdges.get(edgeId));
+
+  const nodes = useGraphStore(s =>
+    s.activeSubgraphId
+      ? (s.subgraphs[s.activeSubgraphId]?.nodes ?? s.nodes)
+      : s.nodes
+  );
+  const edges = useGraphStore(s =>
+    s.activeSubgraphId
+      ? (s.subgraphs[s.activeSubgraphId]?.edges ?? s.edges)
+      : s.edges
+  );
+
+  const edge = edges.find(e => e.id === edgeId);
+  if (!edge) return null;
+
+  const srcType   = info?.sourceType ?? TUnknown;
+  const compatible = info?.compatible ?? null;
+  const color     = wireColor(srcType, compatible);
+
+  // Handle IDs are formatted as "nodeId__portId"
+  function parseHandle(nodeId: string, handleStr: string | null | undefined) {
+    if (!handleStr) return { nodeLabel: nodeId, portLabel: '' };
+    const sep = handleStr.indexOf('__');
+    const portId = sep >= 0 ? handleStr.slice(sep + 2) : handleStr;
+    const nd = nodes.find(n => n.id === nodeId);
+    const port = nd?.data.ports.find(p => p.id === portId);
+    // Pick the best human-readable label for the node
+    const nodeLabel =
+      (nd?.data as any)?.label ??
+      (nd?.data as any)?.name  ??
+      (nd?.data as any)?.op    ??
+      nd?.data.kind            ??
+      nodeId;
+    return { nodeLabel, portLabel: port?.label ?? portId };
+  }
+
+  const src = parseHandle(edge.source, edge.sourceHandle);
+  const tgt = parseHandle(edge.target, edge.targetHandle);
+
+  return (
+    <div className="flex-1 overflow-y-auto p-3 flex flex-col gap-3">
+
+      {/* Wire type */}
+      <div>
+        <p className="text-xs uppercase tracking-wider mb-1.5" style={{ color: 'var(--text-muted)' }}>
+          Wire type
+        </p>
+        <div className="flex items-center gap-2">
+          <span
+            className="w-2.5 h-2.5 rounded-full flex-shrink-0 border border-white/20"
+            style={{ background: color }}
+          />
+          <span className="text-xs font-mono" style={{ color: 'var(--text-primary)' }}>
+            {showType(srcType)}
+          </span>
+        </div>
+        {compatible === false && info?.errorMessage && (
+          <p className="text-xs mt-1.5 text-red-400">{info.errorMessage}</p>
+        )}
+        {compatible === true && (
+          <p className="text-xs mt-1.5" style={{ color: 'var(--text-faint)' }}>Compatible ✓</p>
+        )}
+      </div>
+
+      {/* From */}
+      <div>
+        <p className="text-xs uppercase tracking-wider mb-1" style={{ color: 'var(--text-muted)' }}>From</p>
+        <p className="text-xs font-mono truncate" style={{ color: 'var(--text-primary)' }}>{src.nodeLabel}</p>
+        {src.portLabel && (
+          <p className="text-xs" style={{ color: 'var(--text-faint)' }}>port: {src.portLabel}</p>
+        )}
+      </div>
+
+      {/* To */}
+      <div>
+        <p className="text-xs uppercase tracking-wider mb-1" style={{ color: 'var(--text-muted)' }}>To</p>
+        <p className="text-xs font-mono truncate" style={{ color: 'var(--text-primary)' }}>{tgt.nodeLabel}</p>
+        {tgt.portLabel && (
+          <p className="text-xs" style={{ color: 'var(--text-faint)' }}>port: {tgt.portLabel}</p>
+        )}
+      </div>
+
+    </div>
+  );
+}
+
 // ─── Main panel ────────────────────────────────────────────────────────────
 
 export function PropertiesPanel() {
-  const selectedNodeId  = useUIStore(s => s.selectedNodeId);
+  const selectedNodeId    = useUIStore(s => s.selectedNodeId);
   const setSelectedNodeId = useUIStore(s => s.setSelectedNodeId);
+  const selectedEdgeId    = useUIStore(s => s.selectedEdgeId);
 
   const nodes          = useGraphStore(s =>
     s.activeSubgraphId
@@ -144,7 +235,8 @@ export function PropertiesPanel() {
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
-  const open = !!node;
+  const open  = !!node || !!selectedEdgeId;
+  const title = node ? 'Properties' : 'Wire';
 
   return (
     <div
@@ -159,10 +251,16 @@ export function PropertiesPanel() {
       {/* Panel header */}
       <div className="px-3 py-2 border-b text-xs font-semibold uppercase tracking-wider select-none whitespace-nowrap"
            style={{ borderColor: 'var(--border-subtle)', color: 'var(--text-muted)' }}>
-        Properties
+        {title}
       </div>
 
-      {!node ? null : (
+      {/* Edge content */}
+      {!node && selectedEdgeId && (
+        <EdgeProperties edgeId={selectedEdgeId} />
+      )}
+
+      {/* Node content */}
+      {node && (
         <div className="flex-1 overflow-y-auto p-3 flex flex-col gap-3">
           {/* Node kind + label */}
           <div>

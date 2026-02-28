@@ -69,7 +69,7 @@ export function HaskellPanel() {
 
           {/* Code */}
           <div className="flex-1 overflow-y-auto p-3">
-            <pre className="font-mono text-xs whitespace-pre leading-relaxed"
+            <pre className="font-mono text-xs whitespace-pre-wrap leading-relaxed"
                  style={{ color: 'var(--color-result)' }}>
               {code}
             </pre>

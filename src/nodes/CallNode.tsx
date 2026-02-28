@@ -1,8 +1,11 @@
 // ─── CallNode ────────────────────────────────────────────────────────────────
 // A node that calls a named Function by reference.
-// The user picks the target from a dropdown; ports update to match the
-// selected function's signature, enabling the call to be wired up.
+// The user types (or picks from autocomplete) the target name; ports update to
+// match the selected function's signature, enabling the call to be wired up.
+// The function lookup searches root nodes AND all subgraphs so that a
+// recursive call typed from inside a subgraph resolves correctly.
 
+import { useState } from 'react';
 import { type NodeProps } from '@xyflow/react';
 import { PhoneCall } from 'lucide-react';
 import { Handle, Position, useNodeId } from '@xyflow/react';
@@ -39,42 +42,44 @@ function PortHandle({ nodeId, port }: { nodeId: string; port: Port }) {
 export function CallNode({ data, selected }: NodeProps<LibNode>) {
   const d = data as CallNodeData;
   const nodeId = useNodeId() ?? '';
-  const nodes = useGraphStore(s => s.nodes);
   const updateNodeData = useGraphStore(s => s.updateNodeData);
 
-  // Collect all named Function (module) nodes on the root canvas
-  const functionNodes = nodes.filter(n => n.data.kind === 'module') as LibNode[];
-  const functionNames = functionNodes.map(n => (n.data as ModuleNodeData).name);
+  // Search root nodes AND all subgraphs so a recursive reference typed
+  // from inside a subgraph (e.g. calling the module being built) resolves.
+  const rootNodes    = useGraphStore(s => s.nodes);
+  const subgraphMap  = useGraphStore(s => s.subgraphs);
+  const allNodes: LibNode[] = [
+    ...rootNodes,
+    ...Object.values(subgraphMap).flatMap(sub => sub.nodes as LibNode[]),
+  ];
+  const functionNodes = allNodes.filter(n => n.data.kind === 'module') as LibNode[];
+  const functionNames = [...new Set(functionNodes.map(n => (n.data as ModuleNodeData).name))];
+
+  // Local draft so the input stays responsive while typing
+  const [draft, setDraft] = useState(d.targetName);
 
   const inputPorts  = d.ports.filter(p => p.direction === 'input');
   const outputPorts = d.ports.filter(p => p.direction === 'output');
 
-  function handleSelect(name: string) {
+  function commit(name: string) {
+    const trimmed = name.trim();
     updateNodeData(nodeId, raw => {
       const cd = raw as CallNodeData;
-      cd.targetName = name;
+      cd.targetName = trimmed;
 
-      if (!name) {
-        cd.ports = [];
+      if (!trimmed) { cd.ports = []; return; }
+
+      // Find the module and mirror its ports
+      const target = functionNodes.find(n => (n.data as ModuleNodeData).name === trimmed);
+      if (!target) {
+        // Name typed but module not yet found (e.g. forward reference to the
+        // module currently being built). Keep any existing ports so wires stay.
         return;
       }
-
-      // Find the function node and mirror its ports
-      const target = functionNodes.find(n => (n.data as ModuleNodeData).name === name);
-      if (!target) { cd.ports = []; return; }
       const md = target.data as ModuleNodeData;
-
       cd.ports = [
-        ...md.inputPorts.map(p => ({
-          ...p,
-          type: p.type ?? TUnknown,
-          connected: false,
-        })),
-        ...md.outputPorts.map(p => ({
-          ...p,
-          type: p.type ?? TUnknown,
-          connected: false,
-        })),
+        ...md.inputPorts.map(p => ({ ...p, type: p.type ?? TUnknown, connected: false })),
+        ...md.outputPorts.map(p => ({ ...p, type: p.type ?? TUnknown, connected: false })),
       ];
     });
   }
@@ -91,36 +96,40 @@ export function CallNode({ data, selected }: NodeProps<LibNode>) {
         <span>Call Function</span>
       </div>
 
-      {/* Dropdown */}
+      {/* Name input with datalist autocomplete */}
       <div className="px-2 py-1.5 border-b" style={{ borderColor: 'var(--border-subtle)' }}>
-        <select
-          className="w-full text-xs rounded px-1.5 py-0.5 outline-none cursor-pointer"
-          style={{ background: 'var(--bg-node-input)', color: 'var(--text-primary)', border: '1px solid var(--border-input)' }}
-          value={d.targetName}
-          onChange={e => handleSelect(e.target.value)}
+        <input
+          list={`fn-list-${nodeId}`}
+          value={draft}
+          placeholder="function name…"
+          className="w-full text-xs font-mono rounded px-1.5 py-0.5 outline-none focus:border-blue-500 nodrag"
+          style={{
+            background: 'var(--bg-node-input)',
+            color: 'var(--text-primary)',
+            border: '1px solid var(--border-input)',
+          }}
+          onChange={e => setDraft(e.target.value)}
+          onBlur={e => commit(e.target.value)}
+          onKeyDown={e => {
+            if (e.key === 'Enter') { commit((e.target as HTMLInputElement).value); e.currentTarget.blur(); }
+            if (e.key === 'Escape') { setDraft(d.targetName); e.currentTarget.blur(); }
+          }}
           onClick={e => e.stopPropagation()}
-        >
-          <option value="">— select function —</option>
-          {functionNames.map(name => (
-            <option key={name} value={name}>{name}</option>
-          ))}
-        </select>
+        />
+        <datalist id={`fn-list-${nodeId}`}>
+          {functionNames.map(name => <option key={name} value={name} />)}
+        </datalist>
       </div>
 
       {/* Ports */}
       {d.ports.length > 0 && (
         <div className="flex gap-0">
-          {/* Input ports */}
           <div className="flex flex-col justify-center py-1 pl-0 pr-2 min-w-[60px]">
             {inputPorts.map(p => (
               <PortHandle key={p.id} nodeId={nodeId} port={p} />
             ))}
           </div>
-
-          {/* Spacer */}
           <div className="flex-1" />
-
-          {/* Output ports */}
           <div className="flex flex-col justify-center py-1 pl-2 pr-0 min-w-[60px]">
             {outputPorts.map(p => (
               <PortHandle key={p.id} nodeId={nodeId} port={p} />
@@ -129,9 +138,9 @@ export function CallNode({ data, selected }: NodeProps<LibNode>) {
         </div>
       )}
 
-      {d.ports.length === 0 && !d.targetName && (
+      {d.ports.length === 0 && (
         <div className="text-center text-[9px] py-1.5 select-none" style={{ color: 'var(--text-faint)' }}>
-          select a function above
+          {d.targetName ? `"${d.targetName}" — navigate back to resolve` : 'type a function name above'}
         </div>
       )}
     </div>

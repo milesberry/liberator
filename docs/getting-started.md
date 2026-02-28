@@ -305,54 +305,165 @@ In Haskell: `filter isEven (map square [1..10])` gives `[4,16,36,64,100]`
 
 ---
 
-## 8. Recursive functions — `sum'`
+## 8. Recursive functions — `sum'` (using `if`)
 
-From the worksheet:
 ```haskell
 sum' [] = 0
-sum' xs = head' xs + sum' (tail' xs)
+sum' xs = head xs + sum' (tail xs)
 ```
 
-For recursive functions in Liberator, use a **Function** (Module) node.
-A Function node has its own internal subgraph — double-click it to go inside.
+Recursive functions are built by **wrapping** nodes into a named module, exactly as in
+section 8b. Because this version uses three separate nodes (`null`, `head`, `tail`) that all
+need the same `xs` input, wrapping creates extra anchor nodes that need tidying — the same
+two-pass approach applies.
 
-**Step 1.** Drag a **Function** node. Give it the name `sum'`.
-  Add one input port (`xs`, type List) and one output port (`result`, type Int).
+### Pass 1 — build, wire, and wrap
 
-**Step 2.** Double-click to enter the subgraph. You'll see input and output **anchor** nodes.
+**Step 1.** Drag seven nodes:
 
-**Step 3.** Inside the subgraph, build:
-- **ListOp** `null` — checks if `xs` is empty
-- **ListOp** `head` — gets first element
-- **ListOp** `tail` — gets the rest
-- **Call** `sum'` node — the recursive call (targetted at the same function)
-- **PrimOp** `+` — adds head to recursive result
-- **Value** `Int` `0` — the base case result
-- **If** node — branches on `null xs`
+| Node | Setting |
+|------|---------|
+| **ListOp null** | — |
+| **ListOp head** | — |
+| **ListOp tail** | — |
+| **Value** | Int, `0` |
+| **If** | — |
+| **PrimOp +** | — |
+| **Call Function** | type `sum'` in the name field |
+| **Output** | label: `sum` |
 
-**Step 4.** Connect:
-- anchor (xs) → null, head, tail
-- null result → if **cond**
-- `0` → if **then**
-- head result → `+` left
-- tail result → Call xs
-- Call result → `+` right
-- `+` result → if **else**
-- if result → output anchor
+**Step 2.** Wire all connections that don't require `xs`:
+- null result → If **cond**
+- Value `0` → If **then**
+- head result → `+` **x**
+- tail result → Call **xs**
+- `+` result → If **else**
+- If result → Output
 
-**Step 5.** Click the breadcrumb to return to the outer graph.
-  Connect a **Value** `List` `[1,2,3,4,5]` → Function input, Function output → Output.
+Leave null, head, and tail **xs** inputs unconnected.
 
-**Step 6.** Run — `15`.
+**Step 3.** Select all seven nodes and click **Wrap as function**, name it `sum'`.
 
-![Recursive function module — outer graph](img/07-factorial-module.png)
+The module appears with **four anchor nodes** inside: three labelled `xs` (one each for
+null, head, and tail) and one labelled `y` (for the unconnected `+` input).
 
-![Recursive function module — inner subgraph](img/09-recursive-factorial-inner.png)
+### Pass 2 — clean up anchors and complete
 
-> This is exactly the pattern used in the **Recursive factorial** example (Example 8 in the
-> menu). Load that example to see a complete recursive module.
+**Step 4.** Double-click the module to enter its subgraph.
 
-![Recursive factorial example — outer graph](img/08-recursive-factorial-outer.png)
+Delete two of the three `xs` anchors and the `y` anchor — keep just one `xs` anchor.
+That anchor is already wired to whichever of null/head/tail it was created for; now also
+wire it to the other two:
+- `xs` anchor → null **xs**
+- `xs` anchor → head **xs**
+- `xs` anchor → tail **xs**
+
+**Step 5.** Navigate back out. The module now has a single `xs` input, and the Call node
+auto-refreshes with its ports.
+
+**Step 6.** Double-click to re-enter the subgraph.
+
+**Step 7.** Wire the final connection:
+- Call **sum** (output) → `+` **y**
+
+**Step 8.** Navigate back out.
+
+![Recursive sum using if](img/8b-if-sum.png)
+
+### Testing
+
+**Step 9.** On the outer canvas:
+- **Value** `[1,2,3,4,5]` → module **xs**
+- module **sum** → **Output**
+
+Click **Run** → `15`
+
+> **Why four anchors?** Every unconnected input port becomes a separate module input when
+> wrapping — there is no automatic merging. The `case [ ] of` version (section 8b) avoids
+> this because all list work flows through a single node with one `xs` input.
+
+
+
+---
+
+## 8b. Alternative — `sum'` using `case [ ] of`
+
+The if-based version above uses `null`/`head`/`tail`. The idiomatic Haskell way is list
+**pattern matching**, which the **case [ ] of** node (Control group) supports directly:
+
+```haskell
+sum' [] = 0
+sum' (x:xs) = x + sum' xs
+```
+
+Building a recursive function this way needs **two short passes** inside the module — once
+to create it (so the Call node can resolve its ports), then once to finish the wiring.
+
+### Pass 1 — build, wire, and wrap
+
+**Step 1.** Drag five nodes onto the canvas:
+
+| Node | Setting |
+|------|---------|
+| **case [ ] of** | head variable: `x`, tail variable: `xs'` |
+| **Integer** | value: `0` (the base case) |
+| **Add (+)** | — |
+| **Call Function** | type `sum'` in the name field |
+| **Output** | label it `sum` |
+
+**Step 2.** Make these connections:
+- Integer `0` → case **[]** (nil input)
+- case **head** → Add **a**
+- Add **result** → case **x:xs** (cons input)
+- case **result** → Output
+
+Leave **case xs** and **Add b** unconnected — both will be wired inside the module.
+
+**Step 3.** Select all five nodes and click **Wrap as function** at the bottom of the canvas.
+Name it `sum'`.
+
+The module chip appears with **two input ports** (`xs` and `y`) and one output port.
+The `y` port is a placeholder created because **Add b** had no connection yet;
+it will be removed in the next step.
+
+### Pass 2 — clean up and complete
+
+**Step 4.** Double-click the module chip to enter its subgraph.
+
+You will see two **anchor nodes** on the left — one labelled `xs` and one labelled `y`.
+Select the **`y` anchor** and delete it.
+
+**Step 5.** Click the breadcrumb to navigate **back out**.
+The module now has a single `xs` input port, and the Call node inside
+automatically picks up its correct ports (one input `xs`, one output `sum`).
+
+**Step 6.** Double-click to re-enter the subgraph.
+
+**Step 7.** Complete the recursive wiring:
+- case **tail** (xs') → Call **xs**
+- Call **sum** (output) → Add **b**
+
+**Step 8.** Navigate back out.
+
+### Testing
+
+**Step 9.** On the outer canvas:
+- **Value** `7` → **range** → module **xs**
+- module **sum** → **Output**
+
+Click **Run** → `28`
+
+![Recursive sum using case](img/8a-case-sum.png)
+
+The Haskell panel shows:
+
+```haskell
+sum' xs = case xs of { [] -> 0; (x:xs') -> x + sum' xs' }
+```
+
+> **Why two passes?** The Call node can only get its output port once the module already
+> exists. The first pass creates the module; navigating out triggers an automatic sync that
+> gives the Call its output port. The second pass wires that port into Add **b**.
 
 ---
 

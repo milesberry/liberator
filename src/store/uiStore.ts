@@ -15,6 +15,7 @@ export type Theme = 'dark' | 'light';
 interface UIState {
   selectedNodeId:  string | null;
   selectedNodeIds: string[];                // multi-selection (mirrors RF selection)
+  selectedEdgeId:  string | null;           // single selected edge
   clipboard:       ClipboardNode[] | null;  // null = nothing copied yet
   graphNavStack:   string[];
   paletteSearchQuery: string;
@@ -24,6 +25,7 @@ interface UIState {
 
   setSelectedNodeId:  (id: string | null) => void;
   setSelectedNodeIds: (ids: string[]) => void;
+  setSelectedEdgeId:  (id: string | null) => void;
   setClipboard:       (nodes: ClipboardNode[] | null) => void;
   pushSubgraph: (subgraphId: string) => void;
   popSubgraph:  () => void;
@@ -46,6 +48,7 @@ applyTheme(initialTheme);
 export const useUIStore = create<UIState>((set) => ({
   selectedNodeId:  null,
   selectedNodeIds: [],
+  selectedEdgeId:  null,
   clipboard:       null,
   graphNavStack:   [],
   paletteSearchQuery: '',
@@ -55,6 +58,7 @@ export const useUIStore = create<UIState>((set) => ({
 
   setSelectedNodeId:  (id)  => set({ selectedNodeId: id }),
   setSelectedNodeIds: (ids) => set({ selectedNodeIds: ids }),
+  setSelectedEdgeId:  (id)  => set({ selectedEdgeId: id }),
   setClipboard:       (nodes) => set({ clipboard: nodes }),
   pushSubgraph: (id) => set((s) => ({ graphNavStack: [...s.graphNavStack, id] })),
   popSubgraph:  ()   => set((s) => ({ graphNavStack: s.graphNavStack.slice(0, -1) })),

@@ -12,6 +12,7 @@ export function WireEdge({
   sourceX, sourceY, targetX, targetY,
   sourcePosition, targetPosition,
   markerEnd,
+  selected,
 }: EdgeProps<LibEdge>) {
   // Read type info from the dedicated type store, keyed by edge ID
   const info = useTypeStore(s => s.checkedEdges.get(id));
@@ -29,11 +30,25 @@ export function WireEdge({
 
   return (
     <>
+      {/* Selection halo — wider semi-transparent glow rendered behind the wire */}
+      {selected && (
+        <path
+          d={edgePath}
+          fill="none"
+          stroke={color}
+          strokeWidth={strokeWidth + 7}
+          opacity={0.35}
+        />
+      )}
       <BaseEdge
         id={id}
         path={edgePath}
         markerEnd={markerEnd}
-        style={{ stroke: color, strokeWidth, opacity: 0.85 }}
+        style={{
+          stroke: color,
+          strokeWidth: selected ? strokeWidth + 1 : strokeWidth,
+          opacity: selected ? 1 : 0.85,
+        }}
       />
       {compatible === false && info?.errorMessage && (
         <EdgeLabelRenderer>
