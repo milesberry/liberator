@@ -63,6 +63,17 @@ export function checkGraph(
       }
     }
 
+    // Module nodes with unconnected inputs act as partially-applied functions.
+    // e.g. lcmPair with both inputs unconnected has output type Int → Int → Int,
+    // which is what foldr expects when the module is passed as a HOF argument.
+    if (d.kind === 'module' && port.direction === 'output') {
+      const inputPorts = d.ports.filter(p => p.direction === 'input');
+      if (inputPorts.length > 0) {
+        const connected = connectedInputs.get(nodeId) ?? new Set<string>();
+        return applySubst(subst, partialAppOutputType(inputPorts, port.type, connected));
+      }
+    }
+
     return applySubst(subst, port.type);
   };
 
