@@ -1,6 +1,6 @@
 # Liberator — Visual Haskell
 
-A drag-and-drop visual programming environment for Haskell, designed for teaching AQA A-Level Computer Science. Build programs by connecting nodes on a canvas instead of writing text — then evaluate them live to see results.
+A drag-and-drop visual programming environment for Haskell, designed for teaching the functional programming requirements of AQA A-Level Computer Science. Build programs by connecting nodes on a canvas instead of writing text — then evaluate them live to see results.
 
 It runs in the browser, with nothing to download, and no log-in required. [milesberry.net/liberator](https://milesberry.net/liberator)
 
@@ -9,6 +9,8 @@ It runs in the browser, with nothing to download, and no log-in required. [miles
 ## What it does
 
 Liberator lets you construct Haskell expressions visually. Each node represents a value, function, or operation; wires between nodes represent function application and data flow. The evaluator reduces the graph to a result in the same way a Haskell runtime would.
+
+![Primes below 100](docs/img/primes.png)
 
 ### Node palette
 
