@@ -36,6 +36,7 @@ import { CallNode }     from '../../nodes/CallNode';
 import { LetNode }      from '../../nodes/LetNode';
 import { ListCompNode }  from '../../nodes/ListCompNode';
 import { MatchListNode } from '../../nodes/MatchListNode';
+import { CommentNode }  from '../../nodes/CommentNode';
 import { WireEdge }     from './WireEdge';
 import { QuickAdd }    from './QuickAdd';
 import type { LibNode } from '../../types/nodes';
@@ -56,6 +57,7 @@ const NODE_TYPES: NodeTypes = {
   let:       LetNode      as any,
   listcomp:  ListCompNode as any,
   matchlist: MatchListNode as any,
+  comment:   CommentNode  as any,
 };
 
 const EDGE_TYPES: EdgeTypes = {

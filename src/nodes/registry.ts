@@ -596,6 +596,15 @@ const moduleNodes: NodeDefinition[] = [
   },
 ];
 
+const annotationNodes: NodeDefinition[] = [
+  {
+    kind: 'comment', label: 'Comment',
+    category: 'utilities',
+    description: 'A free-text annotation. Appears as -- comment lines in the Haskell panel.',
+    makeData: () => ({ kind: 'comment', text: '', ports: [] }),
+  },
+];
+
 // ─── Full registry ─────────────────────────────────────────────────────────
 
 export const NODE_REGISTRY: NodeDefinition[] = [
@@ -606,6 +615,7 @@ export const NODE_REGISTRY: NodeDefinition[] = [
   ...listNodes,
   ...hofNodes,
   ...utilityNodes,
+  ...annotationNodes,
   ...tupleNodes,
   ...stringNodes,
   ...listCompNodes,
