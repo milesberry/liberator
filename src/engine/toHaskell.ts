@@ -10,6 +10,7 @@
 //  5. Pretty-print each output expression into main
 
 import type { LibNode } from '../types/nodes';
+import type { CommentNodeData } from '../types/nodes';
 import type { LibEdge } from '../types/edges';
 import type { SubgraphState } from '../store/graphStore';
 import type { ExprTree } from './toExprTree';
@@ -352,6 +353,17 @@ export function graphToHaskell(
       lines.push(ppTopLevelDef(name, body, letrecNames));
       lines.push('');
     }
+  }
+
+  // Comments from Comment nodes on the canvas
+  const commentLines = nodes
+    .filter(n => n.data.kind === 'comment')
+    .flatMap(n => (n.data as CommentNodeData).text.split('\n'))
+    .filter(l => l.trim().length > 0)
+    .map(l => `-- ${l}`);
+  if (commentLines.length > 0) {
+    lines.push(...commentLines);
+    lines.push('');
   }
 
   // main

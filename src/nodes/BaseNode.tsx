@@ -22,6 +22,7 @@ const HEADER_STYLES: Record<string, string> = {
   call:     'bg-indigo-700 text-white',
   let:      'bg-teal-600 text-white',
   listcomp: 'bg-green-700 text-white',
+  comment:  'bg-yellow-600 text-white',
 };
 
 // ─── PortHandle ──────────────────────────────────────────────────────────────

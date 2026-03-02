@@ -128,6 +128,13 @@ export interface MatchListNodeData {
   [key: string]: unknown;
 }
 
+export interface CommentNodeData {
+  kind: 'comment';
+  text: string;       // free-text annotation; emitted as -- lines in Haskell output
+  ports: Port[];      // always empty — comments have no dataflow connections
+  [key: string]: unknown;
+}
+
 // ─── Discriminated union ───────────────────────────────────────────────────
 
 export type LibNodeData =
@@ -143,7 +150,8 @@ export type LibNodeData =
   | CallNodeData
   | LetNodeData
   | ListCompNodeData
-  | MatchListNodeData;
+  | MatchListNodeData
+  | CommentNodeData;
 
 // React Flow typed node
 export type LibNode = Node<LibNodeData>;
