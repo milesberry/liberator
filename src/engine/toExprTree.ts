@@ -354,10 +354,20 @@ function buildExpr(nodeId: string, portId: string, ctx: BuildCtx): ExprTree {
         result = { tag: 'Err', message: 'Call: no function selected' };
         break;
       }
-      // Find the named Function node in the graph
-      const targetModuleNode = [...ctx.nodeById.values()].find(
+      // Find the named Function node — first in current scope, then in any subgraph.
+      // The subgraphs map is flat (all stored by ID at top level), so this finds
+      // modules defined at any nesting depth.
+      let targetModuleNode = [...ctx.nodeById.values()].find(
         n => n.data.kind === 'module' && (n.data as ModuleNodeData).name === cd.targetName
       );
+      if (!targetModuleNode) {
+        for (const sub of Object.values(ctx.subgraphs)) {
+          targetModuleNode = sub.nodes.find(
+            n => n.data.kind === 'module' && (n.data as ModuleNodeData).name === cd.targetName
+          );
+          if (targetModuleNode) break;
+        }
+      }
       if (!targetModuleNode) {
         result = { tag: 'Err', message: `Call: function "${cd.targetName}" not found` };
         break;
