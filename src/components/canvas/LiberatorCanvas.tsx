@@ -151,7 +151,7 @@ function WrapModuleButton({ selectedIds }: { selectedIds: string[] }) {
   const [showInput, setShowInput] = useState(false);
   const { wrapAsModule } = useGraphStore();
 
-  if (selectedIds.length < 2) return null;
+  if (selectedIds.length < 1) return null;
 
   const doWrap = () => {
     const n = name.trim() || 'myFunction';
@@ -186,7 +186,7 @@ function WrapModuleButton({ selectedIds }: { selectedIds: string[] }) {
                      font-medium rounded-lg shadow-xl transition-colors border border-amber-500"
         >
           <Package size={12} />
-          Wrap {selectedIds.length} nodes as Function
+          Wrap {selectedIds.length === 1 ? 'node' : `${selectedIds.length} nodes`} as Function
         </button>
       )}
     </div>

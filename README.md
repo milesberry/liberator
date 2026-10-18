@@ -95,7 +95,7 @@ Wires are coloured by the type of value they carry — numbers (orange), boolean
 
 ### Modules (named functions)
 
-Select two or more nodes and click **Wrap as Function**. Liberator extracts them into a named module node with auto-generated input/output ports, wiring cross-boundary edges automatically. Double-click a module node to navigate inside it; a breadcrumb trail appears at the top of the canvas.
+Select one or more nodes and click **Wrap as Function**. Liberator extracts them into a named module node with auto-generated input/output ports, wiring cross-boundary edges automatically. Double-click a module node to navigate inside it; a breadcrumb trail appears at the top of the canvas.
 
 ### Auto-layout (Tidy Up)
 
