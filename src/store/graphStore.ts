@@ -576,6 +576,38 @@ export const useGraphStore = create<GraphState>()(
           }
         }
 
+        // Case C: nothing leaves the selection (e.g. a single node just dropped
+        // on the canvas) → expose every unconnected inner output as a module output
+        if (moduleOutputPorts.length === 0) {
+          const usedSourceHandles = new Set(
+            [...innerEdges, ...crossOut].map(e => e.sourceHandle ?? `${e.source}__result`)
+          );
+          for (const node of innerNodes) {
+            for (const port of node.data.ports.filter(p => p.direction === 'output')) {
+              const srcHandle = `${node.id}__${port.id}`;
+              if (usedSourceHandles.has(srcHandle)) continue;
+              const portId   = `out_${newId()}`;
+              const anchorId = newId();
+              moduleOutputPorts.push({ id: portId, label: port.label, direction: 'output', type: port.type, connected: false });
+              subgraphAnchors.push({
+                id: anchorId, type: 'output',
+                position: { x: 500, y: outputY },
+                data: {
+                  kind: 'output', label: port.label, lastValue: null,
+                  ports: [{ id: 'value', label: 'value', direction: 'input', type: port.type, connected: false }],
+                  _modulePortId: portId,
+                } as any,
+              } as LibNode);
+              extraInnerEdges.push({
+                id: newId(), type: 'lib',
+                source: node.id, sourceHandle: srcHandle,
+                target: anchorId, targetHandle: `${anchorId}__value`,
+              } as LibEdge);
+              outputY += 80;
+            }
+          }
+        }
+
         // ── Save subgraph ─────────────────────────────────────────────────────
         state.subgraphs[subgraphId] = {
           nodes: [...innerNodes, ...subgraphAnchors],
