@@ -254,6 +254,11 @@ const listNodes: NodeDefinition[] = [
     const a = freshVar('a', id);
     return [inp('list0', 'xs', TList(a)), inp('list1', 'ys', TList(a)), out('result', 'result', TList(a))];
   }),
+  // Not a Prelude function: builds the idiom xs ++ [x], which is what it exports as
+  listOp('snoc', 'append item (xs ++ [x])', 'xs ++ [x] :: [a]\nAdd an item to the end of a list.', (id) => {
+    const a = freshVar('a', id);
+    return [inp('list', 'xs', TList(a)), inp('elem', 'x', a), out('result', 'result', TList(a))];
+  }),
   listOp('reverse', 'reverse', 'reverse :: [a] → [a]', (id) => {
     const a = freshVar('a', id);
     return [inp('list', 'xs', TList(a)), out('result', 'result', TList(a))];

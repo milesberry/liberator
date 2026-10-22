@@ -22,7 +22,7 @@ Nodes are organised into categories in the left-hand palette:
 | **Arithmetic** | `+` `−` `×` `÷` `mod` `^` `abs` `negate` |
 | **Comparison** | `==` `/=` `<` `>` `<=` `>=` |
 | **Logic** | `&&` `\|\|` `not` |
-| **Lists** | `head` `tail` `x:xs` `length` `reverse` `take` `drop` `cons` `++` `elem` `null` `last` `init` `[1..n]` `sum` `product` `maximum` `minimum` `sort` `zip` |
+| **Lists** | `head` `tail` `x:xs` `length` `reverse` `take` `drop` `cons` `++` `xs ++ [x]` (append item) `elem` `null` `last` `init` `[1..n]` `sum` `product` `maximum` `minimum` `sort` `zip` |
 | **Higher-Order** | `map` `filter` `foldr` `foldl` `zipWith` `flip` `const` `id` `($)` `(.)` |
 | **Tuples** | `pair` `fst` `snd` |
 | **Strings** | `concat` `show` `words` `unwords` `lines` `unlines` `length` `reverse` `ord` `chr` `strToChars` `charsToStr` |

@@ -208,6 +208,12 @@ function ppExpr(expr: ExprTree, prec: number, letrecNames: Set<string>): string 
         return prec > 1 ? `(${s})` : s;
       }
 
+      // ── x : [] reads better as the one-item list [x] ─────────────────────
+      if (expr.fn.tag === 'App' && expr.fn.fn.tag === 'Builtin' && expr.fn.fn.name === 'cons'
+          && expr.arg.tag === 'Lit' && expr.arg.value.tag === 'VList' && expr.arg.value.elements.length === 0) {
+        return `[${ppExpr(expr.fn.arg, 0, letrecNames)}]`;
+      }
+
       // ── Detect infix: App(App(Builtin(op), left), right) ────────────────
       if (expr.fn.tag === 'App' && expr.fn.fn.tag === 'Builtin') {
         const opName = expr.fn.fn.name;

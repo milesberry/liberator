@@ -164,6 +164,8 @@ function nodeName(node: LibNode): string {
   if (d.kind === 'call')   return d.targetName || 'Call';
   if (d.kind === 'module') return d.name || 'Function';
   if (d.kind === 'if')     return 'if/then/else';
+  if (d.op === 'snoc')   return 'append item';
+  if (d.op === 'uncons') return 'x:xs';
   if (d.op) return /^[a-z]/i.test(d.op) ? d.op : `(${d.op})`;
   return d.kind.charAt(0).toUpperCase() + d.kind.slice(1);
 }
