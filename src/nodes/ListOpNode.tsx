@@ -5,6 +5,7 @@ import type { LibNode, ListOpNodeData } from '../types/nodes';
 const OP_DISPLAY: Partial<Record<string, string>> = {
   'uncons': 'x:xs',
   '++':     '++',
+  'snoc':   'xs ++ [x]',
 };
 
 export function ListOpNode({ data, selected }: NodeProps<LibNode>) {

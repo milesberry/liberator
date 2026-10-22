@@ -38,14 +38,18 @@ export type ExprTree =
   | { tag: 'Err';        message: string };
 
 // ─── Build a section/partial-application expression ───────────────────────
-function buildPartialExpr(builtinName: string, args: Array<ExprTree | null>): ExprTree {
+// `build` combines the full argument list into an expression; by default the
+// builtin is applied to each argument in turn.
+function buildPartialExpr(
+  builtinName: string,
+  args: Array<ExprTree | null>,
+  build?: (full: ExprTree[]) => ExprTree,
+): ExprTree {
   const params: string[] = args.map((a, i) => a === null ? `__p${i}` : '');
-  const fn: ExprTree = { tag: 'Builtin', name: builtinName };
-  const applied = args.reduce<ExprTree>((acc, arg, i) => ({
-    tag: 'App',
-    fn: acc,
-    arg: arg ?? { tag: 'Var', name: params[i] },
-  }), fn);
+  const full: ExprTree[] = args.map((a, i) => a ?? { tag: 'Var', name: params[i] });
+  const applied = build
+    ? build(full)
+    : full.reduce<ExprTree>((acc, arg) => ({ tag: 'App', fn: acc, arg }), { tag: 'Builtin', name: builtinName });
   const nullIndices = args
     .map((a, i) => (a === null ? i : -1))
     .filter(i => i >= 0)
@@ -53,6 +57,10 @@ function buildPartialExpr(builtinName: string, args: Array<ExprTree | null>): Ex
   return nullIndices.reduce<ExprTree>((body, i) => ({
     tag: 'Lam', param: params[i], body,
   }), applied);
+}
+
+function app2(builtinName: string, a: ExprTree, b: ExprTree): ExprTree {
+  return { tag: 'App', fn: { tag: 'App', fn: { tag: 'Builtin', name: builtinName }, arg: a }, arg: b };
 }
 
 // ─── Parse a literal string → HaskellValue ────────────────────────────────
@@ -314,6 +322,11 @@ function buildExpr(nodeId: string, portId: string, ctx: BuildCtx): ExprTree {
       const args: Array<ExprTree | null> = inputPorts.map(p =>
         inputExpr(nodeId, p.id, { ...ctx, visited: new Set(ctx.visited) })
       );
+      if (d.op === 'snoc') {
+        // xs ++ [x], built from (++) and (:) so evaluation and export need nothing new
+        result = buildPartialExpr('snoc', args, ([xs, x]) => app2('++', xs, app2('cons', x, { tag: 'Lit', value: VList([]) })));
+        break;
+      }
       result = buildPartialExpr(d.op, args);
       break;
     }

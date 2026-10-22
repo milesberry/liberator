@@ -187,7 +187,7 @@ Liberator has `head` and `tail` as built-in **ListOp** nodes — no need to defi
 **Shortcut — `x:xs` node:** The Lists palette also has an **x:xs (uncons)** node that does both at once. It takes one list input and has two output ports — `head` and `tail` — so you can fan out to both in a single node. This is especially useful inside recursive functions where you need both parts.
 
 Other useful ListOp nodes: `length`, `reverse`, `sum`, `product`, `maximum`, `minimum`,
-`take`, `drop`, `cons` (add an element to the front of a list), `++` (concatenate two lists), `null` (test whether a list is empty).
+`take`, `drop`, `cons` (add an element to the front of a list), `xs ++ [x]` (add an item to the end of a list), `++` (concatenate two lists), `null` (test whether a list is empty).
 
 ---
 
