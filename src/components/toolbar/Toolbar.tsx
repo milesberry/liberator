@@ -222,6 +222,7 @@ export function Toolbar({ onTidyUp }: ToolbarProps) {
             {[
               { label: 'README',          url: 'https://github.com/milesberry/liberator/blob/main/README.md' },
               { label: 'Getting Started', url: 'https://github.com/milesberry/liberator/blob/main/docs/getting-started.md' },
+              { label: 'Node reference',  url: 'https://github.com/milesberry/liberator/blob/main/docs/node-reference.md' },
             ].map(({ label, url }) => (
               <button key={label}
                 onClick={() => { window.open(url, '_blank'); setShowHelp(false); }}

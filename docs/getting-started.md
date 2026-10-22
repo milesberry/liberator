@@ -9,6 +9,9 @@ simple functions, list operations, higher-order functions, and finally a sorting
 By the end you will be able to build all of these visually and understand how they map to
 written Haskell.
 
+To find out what a particular node does, hover over it, select it and read the **Properties**
+panel, or look it up in the [Node reference](node-reference.md).
+
 ---
 
 ## The canvas
