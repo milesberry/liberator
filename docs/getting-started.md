@@ -529,6 +529,10 @@ is connected, `*` produces a function rather than a number.
 > **Renaming versus deleting.** Renaming a parameter takes effect immediately. Deleting
 > one doesn't — click **Apply** afterwards so the function and its Call nodes catch up.
 
+> **My Functions.** Once `power` exists, it is listed as `power b n` under **My Functions**
+> at the top of the palette. Drag it onto the canvas, or inside another function, to call
+> it — the node arrives with its `b` and `n` ports ready to wire, with no name to type.
+
 ---
 
 ## 9. Quicksort

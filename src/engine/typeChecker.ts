@@ -20,7 +20,8 @@ export interface CheckedEdge {
   sourceType: HaskellType;
   targetType: HaskellType;
   compatible: boolean;
-  errorMessage?: string;
+  errorMessage?: string;   // full explanation, with a hint where one helps
+  errorShort?: string;     // compact version for the label on the wire
 }
 
 // ─── Main entry point ─────────────────────────────────────────────────────
@@ -63,10 +64,10 @@ export function checkGraph(
       }
     }
 
-    // Module nodes with unconnected inputs act as partially-applied functions.
-    // e.g. lcmPair with both inputs unconnected has output type Int → Int → Int,
-    // which is what foldr expects when the module is passed as a HOF argument.
-    if (d.kind === 'module' && port.direction === 'output') {
+    // Module and Call nodes with unconnected inputs act as partially-applied
+    // functions. e.g. lcmPair with both inputs unconnected has output type
+    // Int → Int → Int, which is what foldr expects when passed as a HOF argument.
+    if ((d.kind === 'module' || d.kind === 'call') && port.direction === 'output') {
       const inputPorts = d.ports.filter(p => p.direction === 'input');
       if (inputPorts.length > 0) {
         const connected = connectedInputs.get(nodeId) ?? new Set<string>();
@@ -104,16 +105,67 @@ export function checkGraph(
     const testResult = unify(resolvedSrc, resolvedTgt, new Map());
     const compatible = testResult !== null;
 
+    const msg = compatible ? undefined : mismatchMessage(edge.source, edge.target, tgtPortId, resolvedSrc, resolvedTgt);
     return {
       id: edge.id,
       sourceType: resolvedSrc,
       targetType: resolvedTgt,
       compatible,
-      errorMessage: compatible ? undefined : `Cannot match ${showTypeSimple(resolvedSrc)} with ${showTypeSimple(resolvedTgt)}`,
+      errorMessage: msg?.full,
+      errorShort: msg?.short,
     };
   });
 
   return checkedEdges;
+
+  // A student-friendly explanation of a type mismatch on one wire. The common
+  // slip is a function where a value is wanted, or vice versa, so those cases
+  // say which inputs to connect or leave empty.
+  function mismatchMessage(srcId: string, tgtId: string, tgtPortId: string,
+                           src: HaskellType, tgt: HaskellType): { full: string; short: string } {
+    const srcNode = nodeById.get(srcId);
+    const tgtNode = nodeById.get(tgtId);
+    const tgtPort = tgtNode?.data.ports.find(p => p.id === tgtPortId);
+    const where = tgtNode
+      ? `The ${tgtPort?.label ?? ''} input of ${nodeName(tgtNode)}`
+      : 'This input';
+    const srcInputs = srcNode?.data.ports.filter(p => p.direction === 'input') ?? [];
+    const connected = connectedInputs.get(srcId) ?? new Set<string>();
+    const empty = srcInputs.filter(p => !connected.has(p.id)).length;
+    const hasEmpty = empty > 0;
+    const srcName = srcNode ? nodeName(srcNode) : 'the source node';
+
+    if (tgt.tag === 'Fun' && src.tag !== 'Fun') {
+      const hint = srcInputs.length > 0 && !hasEmpty
+        ? ` To pass ${srcName} itself as a function, leave one of its inputs empty.`
+        : '';
+      return {
+        full:  `${where} needs a function (${showTypeSimple(tgt)}), but this wire carries a value of type ${showTypeSimple(src)}.${hint}`,
+        short: `Needs a function (${showTypeSimple(tgt)}), got ${showTypeSimple(src)}`,
+      };
+    }
+    if (src.tag === 'Fun' && tgt.tag !== 'Fun') {
+      const hint = hasEmpty ? ` Connect the empty ${empty === 1 ? 'input' : 'inputs'} on ${srcName} to get a value.` : '';
+      return {
+        full:  `${where} needs a value of type ${showTypeSimple(tgt)}, but this wire carries a function (${showTypeSimple(src)}).${hint}`,
+        short: `Needs ${showTypeSimple(tgt)}, got a function (${showTypeSimple(src)})`,
+      };
+    }
+    return {
+      full:  `${where} needs ${showTypeSimple(tgt)}, but this wire carries ${showTypeSimple(src)}.`,
+      short: `Needs ${showTypeSimple(tgt)}, got ${showTypeSimple(src)}`,
+    };
+  }
+}
+
+// The name a student sees on a node: the operator, function or node kind
+function nodeName(node: LibNode): string {
+  const d = node.data as { kind: string; op?: string; name?: string; targetName?: string };
+  if (d.kind === 'call')   return d.targetName || 'Call';
+  if (d.kind === 'module') return d.name || 'Function';
+  if (d.kind === 'if')     return 'if/then/else';
+  if (d.op) return /^[a-z]/i.test(d.op) ? d.op : `(${d.op})`;
+  return d.kind.charAt(0).toUpperCase() + d.kind.slice(1);
 }
 
 // ─── Partial application output type ─────────────────────────────────────

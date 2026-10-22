@@ -54,9 +54,10 @@ export function WireEdge({
         <EdgeLabelRenderer>
           <div
             style={{ transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)` }}
-            className="absolute pointer-events-none bg-red-800 text-white text-xs rounded px-1 py-0.5 whitespace-nowrap"
+            className="absolute bg-red-800 text-white text-xs rounded px-1 py-0.5 whitespace-nowrap cursor-help"
+            title={info.errorMessage}
           >
-            {info.errorMessage}
+            {info.errorShort ?? info.errorMessage}
           </div>
         </EdgeLabelRenderer>
       )}

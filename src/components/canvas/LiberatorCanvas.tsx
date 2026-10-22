@@ -21,6 +21,7 @@ import { useGraphStore } from '../../store/graphStore';
 import { useUIStore, snapshotNodes } from '../../store/uiStore';
 import { findDefinition } from '../../nodes/registry';
 import { newId } from '../../utils/idGen';
+import { listFunctions, callDataFor } from '../../utils/functions';
 import { computeLayout } from '../../utils/layout';
 
 import { ValueNode }   from '../../nodes/ValueNode';
@@ -198,6 +199,12 @@ interface CanvasInnerProps {
   onRegisterTidyUp: (fn: () => void) => void;
 }
 
+// Nodes of whichever graph is on screen: the root, or the open function's subgraph
+function activeGraphNodes(): LibNode[] {
+  const { nodes, subgraphs, activeSubgraphId } = useGraphStore.getState();
+  return (activeSubgraphId && subgraphs[activeSubgraphId]?.nodes) || nodes;
+}
+
 function CanvasInner({ onRegisterTidyUp }: CanvasInnerProps) {
   const {
     nodes: rootNodes, edges: rootEdges,
@@ -232,14 +239,14 @@ function CanvasInner({ onRegisterTidyUp }: CanvasInnerProps) {
 
       if (ctrl && e.key === 'c') {
         e.preventDefault();
-        const activeNodes = useGraphStore.getState().nodes; // root only for now
+        const activeNodes = activeGraphNodes();
         const ids = new Set(useUIStore.getState().selectedNodeIds);
         if (ids.size > 0) setClipboard(snapshotNodes(activeNodes, ids));
         return;
       }
       if (ctrl && e.key === 'x') {
         e.preventDefault();
-        const activeNodes = useGraphStore.getState().nodes;
+        const activeNodes = activeGraphNodes();
         const ids = new Set(useUIStore.getState().selectedNodeIds);
         if (ids.size > 0) {
           setClipboard(snapshotNodes(activeNodes, ids));
@@ -337,6 +344,24 @@ function CanvasInner({ onRegisterTidyUp }: CanvasInnerProps) {
     const def = findDefinition(kind, subtype);
     if (!def) return;
     const position = screenToFlowPosition({ x: event.clientX, y: event.clientY });
+
+    // A user-defined Function from the palette: drop a Call node bound to it
+    const callName = event.dataTransfer.getData('application/liberator-call');
+    if (callName) {
+      const state = useGraphStore.getState();
+      const fn = listFunctions(state.nodes, state.subgraphs).find(f => f.name === callName);
+      if (!fn) return;
+      const id = newId();
+      const callNode = { id, type: 'call', position, data: callDataFor(fn) } as LibNode;
+      if (!activeSubgraphId) {
+        state.addPreparedNode(callNode);
+      } else {
+        const { nodes: sNodes, edges: sEdges } = state.subgraphs[activeSubgraphId] ?? { nodes: [], edges: [] };
+        setSubgraph(activeSubgraphId, [...sNodes, callNode], sEdges);
+      }
+      return;
+    }
+
     if (!activeSubgraphId) {
       addNode(def, position);
     } else {
