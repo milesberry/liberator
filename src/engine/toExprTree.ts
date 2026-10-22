@@ -186,10 +186,7 @@ function buildModuleExpr(
   // ── Self-call short-circuit ───────────────────────────────────────────────
   // We're already building this function's body — just apply Var(name) to args.
   if (outerCtx.buildingModules.has(md.name)) {
-    return argExprs.reduce<ExprTree>(
-      (fn, arg) => arg ? { tag: 'App', fn, arg } : fn,
-      { tag: 'Var', name: md.name },
-    );
+    return applyArgs({ tag: 'Var', name: md.name }, argExprs);
   }
 
   // ── Build the λ-abstracted body ───────────────────────────────────────────
@@ -235,10 +232,28 @@ function buildModuleExpr(
   const letrec: ExprTree = { tag: 'Letrec', name: md.name, body: fnExpr };
 
   // Apply arguments to the letrec value
-  return argExprs.reduce<ExprTree>(
-    (fn, arg) => arg ? { tag: 'App', fn, arg } : fn,
-    letrec,
-  );
+  return applyArgs(letrec, argExprs);
+}
+
+// Apply a function to its call-site arguments, where null means "unconnected".
+// Trailing gaps are ordinary partial application (f x). A gap before a
+// connected argument needs a lambda so later arguments reach the right
+// parameter: f _ y  ⇒  \_arg0 → f _arg0 y
+function applyArgs(fn: ExprTree, args: Array<ExprTree | null>): ExprTree {
+  let last = args.length - 1;
+  while (last >= 0 && !args[last]) last--;
+  const gaps: string[] = [];
+  let body = fn;
+  for (let i = 0; i <= last; i++) {
+    let arg = args[i];
+    if (!arg) {
+      const name = `_arg${i}`;
+      gaps.push(name);
+      arg = { tag: 'Var', name };
+    }
+    body = { tag: 'App', fn: body, arg };
+  }
+  return gaps.reduceRight<ExprTree>((b, param) => ({ tag: 'Lam', param, body: b }), body);
 }
 
 // ─── Main builder ─────────────────────────────────────────────────────────

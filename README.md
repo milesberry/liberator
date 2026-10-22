@@ -29,6 +29,7 @@ Nodes are organised into categories in the left-hand palette:
 | **Control** | `if/then/else` `let … in` |
 | **Utilities** | `Output` (displays a result) `Apply` (explicit function application) |
 | **Modules** | Named function blocks (wrap selected nodes into a reusable module) |
+| **My Functions** | Every function you have defined, shown as it is applied (e.g. `power b n`). Drag one onto the canvas to call it |
 | **List Comprehensions** | `[ f x \| x ← xs, p x ]` desugared to `map`/`filter` |
 
 ### Keyboard shortcuts

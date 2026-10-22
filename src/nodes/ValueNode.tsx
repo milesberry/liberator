@@ -14,10 +14,11 @@ const INPUT_STYLE = {
   border: '1px solid var(--border-input)',
 };
 
-// A value node created by wrapAsModule to stand for a function parameter.
-// Its literal is a marker and must never be edited by the user.
+// A value node standing for a function parameter (created by wrapAsModule, or
+// hand-written in the built-in examples). Recognised by _modulePortId, as the
+// evaluator does; its literal is never shown or edited.
 function isParamAnchor(d: ValueNodeData): boolean {
-  return d.literal === '__module_input__' && Boolean((d as { _modulePortId?: string })._modulePortId);
+  return Boolean((d as { _modulePortId?: string })._modulePortId);
 }
 
 export function ValueNode({ id, data, selected }: NodeProps<LibNode>) {

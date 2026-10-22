@@ -16,6 +16,7 @@ import { createNode } from '../nodes/registry';
 import type { NodeDefinition } from '../nodes/registry';
 import type { ClipboardNode } from './uiStore';
 import { newId } from '../utils/idGen';
+import { callDataFor } from '../utils/functions';
 import { TUnknown } from '../types/haskell';
 
 export interface SubgraphState {
@@ -39,6 +40,8 @@ interface GraphSnapshot {
 // Anchor convention (set by wrapAsModule):
 //   Input  anchors: kind='value',  literal='__module_input__', _modulePortId=<portId>
 //   Output anchors: kind='output', _modulePortId=<portId>
+// Input anchors are recognised by _modulePortId alone, as the evaluator does:
+// the built-in examples' hand-written anchors carry ordinary literals.
 //
 // If a plain Output node exists without _modulePortId it was added after
 // wrapping — we promote it to a new output port automatically.
@@ -69,7 +72,6 @@ function syncModuleNodeInState(state: GraphState, subgraphId: string): void {
   const newInputPorts: Port[] = sub.nodes
     .filter(n =>
       n.data.kind === 'value' &&
-      (n.data as any).literal === '__module_input__' &&
       (n.data as any)._modulePortId
     )
     .map(n => {
@@ -196,6 +198,7 @@ interface GraphState {
 
   // Graph mutations
   addNode: (def: NodeDefinition, position: XYPosition) => void;
+  addPreparedNode: (node: LibNode) => void;   // root graph, undoable
   removeNode:  (id: string) => void;
   removeNodes: (ids: string[]) => void;
   pasteNodes:  (clipboard: ClipboardNode[], offset?: { x: number; y: number }) => void;
@@ -291,6 +294,16 @@ export const useGraphStore = create<GraphState>()(
       set((state) => {
         pushHistory(state);
         const node = createNode(def, position) as LibNode;
+        // Add to whichever graph is on screen — inside a function, that's its subgraph
+        const sub = state.activeSubgraphId ? state.subgraphs[state.activeSubgraphId] : undefined;
+        if (sub) sub.nodes.push(node);
+        else state.nodes.push(node);
+      });
+    },
+
+    addPreparedNode: (node) => {
+      set((state) => {
+        pushHistory(state);
         state.nodes.push(node);
       });
     },
@@ -334,15 +347,38 @@ export const useGraphStore = create<GraphState>()(
         for (const entry of clipboard) {
           const freshId = newId();
           // Deep-clone data so each paste gets its own copy; reset port connections
-          const data = JSON.parse(JSON.stringify(entry.data)) as LibNode['data'];
+          let data = JSON.parse(JSON.stringify(entry.data)) as LibNode['data'];
+          let type = entry.type;
+          // A copied Function whose original is still in the graph pastes as a
+          // Call to it — another use, not a second definition sharing its body.
+          // (After a cut the original is gone, so the Function itself is pasted.)
+          if (data.kind === 'module') {
+            const sgId = (data as ModuleNodeData).subgraphId;
+            const live = [...state.nodes, ...Object.values(state.subgraphs).flatMap(sg => sg.nodes)]
+              .find(n => n.data.kind === 'module' && (n.data as ModuleNodeData).subgraphId === sgId);
+            if (live) {
+              data = callDataFor(current(live.data) as ModuleNodeData);
+              type = 'call';
+            }
+          }
           data.ports = data.ports.map(p => ({ ...p, connected: false }));
+          // A pasted copy of a Parameter or function output is an ordinary node;
+          // keeping the anchor marker would give the function duplicate ports
+          const anchor = data as { _modulePortId?: string; literal?: string };
+          if (anchor._modulePortId) {
+            delete anchor._modulePortId;
+            if (anchor.literal === '__module_input__') anchor.literal = '';
+          }
           const node: LibNode = {
             id:       freshId,
-            type:     entry.type,
+            type,
             position: { x: entry.position.x + offset.x, y: entry.position.y + offset.y },
             data,
           };
-          state.nodes.push(node as LibNode);
+          // Paste into whichever graph is on screen — inside a function, that's its subgraph
+          const sub = state.activeSubgraphId ? state.subgraphs[state.activeSubgraphId] : undefined;
+          if (sub) sub.nodes.push(node);
+          else state.nodes.push(node);
         }
       });
     },
