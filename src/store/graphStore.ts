@@ -475,6 +475,15 @@ export const useGraphStore = create<GraphState>()(
         let inputY  = 0;
         let outputY = 0;
 
+        // Parameter names must be distinct: x, x2, x3, …
+        const usedParamLabels = new Set<string>();
+        const uniqueParamLabel = (base: string): string => {
+          let label = base;
+          for (let i = 2; usedParamLabels.has(label); i++) label = `${base}${i}`;
+          usedParamLabels.add(label);
+          return label;
+        };
+
         // ── INPUT PORTS ───────────────────────────────────────────────────────
         // Case A: dangling inner input ports (nothing connected to them at all)
         for (const node of innerNodes) {
@@ -483,13 +492,14 @@ export const useGraphStore = create<GraphState>()(
             if (!innerTargetHandles.has(tgtHandle) && !crossInTargetHandles.has(tgtHandle)) {
               const portId   = `in_${newId()}`;
               const anchorId = newId();
-              moduleInputPorts.push({ id: portId, label: port.label, direction: 'input', type: port.type, connected: false });
+              const paramLabel = uniqueParamLabel(port.label);
+              moduleInputPorts.push({ id: portId, label: paramLabel, direction: 'input', type: port.type, connected: false });
               subgraphAnchors.push({
                 id: anchorId, type: 'value',
                 position: { x: -220, y: inputY },
                 data: {
                   kind: 'value', valueType: 'Int', literal: '__module_input__',
-                  ports: [{ id: 'result', label: port.label, direction: 'output', type: port.type, connected: false }],
+                  ports: [{ id: 'result', label: paramLabel, direction: 'output', type: port.type, connected: false }],
                   _modulePortId: portId,
                 } as any,
               } as LibNode);
@@ -513,13 +523,14 @@ export const useGraphStore = create<GraphState>()(
             const innerNode = innerNodes.find(n => n.id === e.target);
             const innerPort = innerNode?.data.ports.find(p => `${e.target}__${p.id}` === tgtHandle);
             seenCrossInTargets.set(tgtHandle, portId);
-            moduleInputPorts.push({ id: portId, label: innerPort?.label ?? 'in', direction: 'input', type: innerPort?.type ?? TUnknown, connected: false });
+            const paramLabel = uniqueParamLabel(innerPort?.label ?? 'in');
+            moduleInputPorts.push({ id: portId, label: paramLabel, direction: 'input', type: innerPort?.type ?? TUnknown, connected: false });
             subgraphAnchors.push({
               id: anchorId, type: 'value',
               position: { x: -220, y: inputY },
               data: {
                 kind: 'value', valueType: 'Int', literal: '__module_input__',
-                ports: [{ id: 'result', label: innerPort?.label ?? 'in', direction: 'output', type: innerPort?.type ?? TUnknown, connected: false }],
+                ports: [{ id: 'result', label: paramLabel, direction: 'output', type: innerPort?.type ?? TUnknown, connected: false }],
                 _modulePortId: portId,
               } as any,
             } as LibNode);
