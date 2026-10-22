@@ -52,9 +52,26 @@ const OPERATOR_SYMS = new Set(['+','-','*','/','==','/=','<','>','<=','>=','&&',
 interface CustomBuiltin {
   helper: string;   // Haskell source for the helper definition
   needsOrd?: boolean;   // requires import Data.Char (ord, chr)
+  exportName?: string;  // name used in the exported code, when the builtin's own
+                        // name would clash with a standard function
 }
 
 const CUSTOM_BUILTINS: Record<string, CustomBuiltin> = {
+  pair: {
+    helper: 'pair :: a -> b -> (a, b)\npair x y = (x, y)',
+  },
+  // Liberator has no Char type: ord and chr work on one-character Strings,
+  // so they export as wrappers round Data.Char's versions
+  ord: {
+    helper: 'strOrd :: String -> Int\nstrOrd s = ord (head s)',
+    needsOrd: true,
+    exportName: 'strOrd',
+  },
+  chr: {
+    helper: 'strChr :: Int -> String\nstrChr n = [chr n]',
+    needsOrd: true,
+    exportName: 'strChr',
+  },
   range: {
     helper: 'range :: Int -> [Int]\nrange n = [1..n]',
   },
@@ -173,7 +190,7 @@ function ppExpr(expr: ExprTree, prec: number, letrecNames: Set<string>): string 
       const name = expr.name;
       // Operators become sections: (+), (*), etc.
       if (OPERATOR_SYMS.has(name)) return `(${name})`;
-      return name;
+      return CUSTOM_BUILTINS[name]?.exportName ?? name;
     }
 
     case 'Lam': {

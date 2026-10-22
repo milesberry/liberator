@@ -6,6 +6,7 @@ import { useUIStore }   from '../../store/uiStore';
 import { useGraphStore } from '../../store/graphStore';
 import { useTypeStore }  from '../../store/typeStore';
 import { findDefinition } from '../../nodes/registry';
+import { nodeSummary } from '../../nodes/summaries';
 import { wireColor, showType, TUnknown } from '../../types/haskell';
 import type { LibNodeData, Port } from '../../types/nodes';
 
@@ -14,6 +15,12 @@ import type { LibNodeData, Port } from '../../types/nodes';
 interface PortRowProps {
   port: Port;
   onRename: (newLabel: string) => void;
+}
+
+// Registry entry for a node: operators are keyed by op, values by their type
+function definitionFor(data: LibNodeData) {
+  const d = data as { op?: string; valueType?: string };
+  return findDefinition(data.kind, d.op ?? d.valueType);
 }
 
 function PortRow({ port, onRename }: PortRowProps) {
@@ -265,18 +272,24 @@ export function PropertiesPanel() {
           {/* Node kind + label */}
           <div>
             <p className="text-sm font-semibold leading-tight" style={{ color: 'var(--text-primary)' }}>
-              {findDefinition(node.data.kind, (node.data as any).op ?? (node.data as any).subtype)?.label
+              {definitionFor(node.data)?.label
+                ?? (node.data.kind === 'module' ? (node.data as { name?: string }).name : undefined)
                 ?? node.data.kind}
             </p>
             <p className="text-xs capitalize mt-0.5" style={{ color: 'var(--text-faint)' }}>
-              {node.data.kind}
+              {node.data.kind === 'module' ? 'Function' : node.data.kind}
               {(node.data as any).op ? ` · ${(node.data as any).op}` : ''}
             </p>
           </div>
 
-          {/* Description */}
+          {/* What the node does, then its Haskell type signature */}
+          {nodeSummary(node.data) && (
+            <p className="text-xs leading-relaxed" style={{ color: 'var(--text-primary)' }}>
+              {nodeSummary(node.data)}
+            </p>
+          )}
           {(() => {
-            const def = findDefinition(node.data.kind, (node.data as any).op ?? (node.data as any).subtype);
+            const def = definitionFor(node.data);
             return def?.description ? (
               <div>
                 <p className="text-xs leading-relaxed font-mono whitespace-pre-wrap" style={{ color: 'var(--text-muted)' }}>

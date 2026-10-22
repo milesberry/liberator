@@ -1,6 +1,6 @@
 # Liberator — Visual Haskell
 
-A drag-and-drop visual programming environment for Haskell, designed for teaching the functional programming requirements of AQA A-Level Computer Science. Build programs by connecting nodes on a canvas instead of writing text — then evaluate them live to see results.
+A drag-and-drop visual programming environment for Haskell, designed for teaching the functional programming requirements of AQA A-Level Computer Science. Build programs by connecting nodes on a canvas instead of writing text, then click **Run** to see the results.
 
 It runs in the browser, with nothing to download, and no log-in required. [milesberry.net/liberator](https://milesberry.net/liberator)
 
@@ -14,23 +14,25 @@ Liberator lets you construct Haskell expressions visually. Each node represents 
 
 ### Node palette
 
-Nodes are organised into categories in the left-hand palette:
+Nodes are organised into categories in the left-hand palette. Hover over any node for a one-line explanation. The **[Node reference](docs/node-reference.md)** explains every node with an example.
 
-| Category | Examples |
+| Category | Nodes |
 |---|---|
-| **Values** | Integer, Float, Bool, Char, String, List, λ (lambda) |
-| **Arithmetic** | `+` `−` `×` `÷` `mod` `^` `abs` `negate` |
-| **Comparison** | `==` `/=` `<` `>` `<=` `>=` |
-| **Logic** | `&&` `\|\|` `not` |
-| **Lists** | `head` `tail` `x:xs` `length` `reverse` `take` `drop` `cons` `++` `xs ++ [x]` (append item) `elem` `null` `last` `init` `[1..n]` `sum` `product` `maximum` `minimum` `sort` `zip` |
-| **Higher-Order** | `map` `filter` `foldr` `foldl` `zipWith` `flip` `const` `id` `($)` `(.)` |
-| **Tuples** | `pair` `fst` `snd` |
-| **Strings** | `concat` `show` `words` `unwords` `lines` `unlines` `length` `reverse` `ord` `chr` `strToChars` `charsToStr` |
-| **Control** | `if/then/else` `let … in` |
-| **Utilities** | `Output` (displays a result) `Apply` (explicit function application) |
-| **Modules** | Named function blocks (wrap selected nodes into a reusable module) |
 | **My Functions** | Every function you have defined, shown as it is applied (e.g. `power b n`). Drag one onto the canvas to call it |
-| **List Comprehensions** | `[ f x \| x ← xs, p x ]` desugared to `map`/`filter` |
+| **Values** | Integer, Float, Bool, String, List |
+| **Output** | Output (shows a result when you click Run) |
+| **Arithmetic** | `+` `-` `*` `/` `div` `mod` `negate` `abs` |
+| **Comparison** | `==` `/=` `<` `>` `<=` `>=` |
+| **Control** | `case [ ] of` (list pattern match), List Comprehension, Lambda (λ), `if/then/else`, Apply (`$`), `let … in` |
+| **Logic** | `&&` `\|\|` `not` |
+| **Lists** | `head` `tail` `cons (:)` `x:xs` (uncons) `null` `length` `++` `xs ++ [x]` (append item) `reverse` `take` `drop` `elem` `last` `init` |
+| **Higher-Order** | `map` `filter` `foldr` `foldl` `zipWith` |
+| **Utilities** | `sum` `product` `maximum` `minimum` `range [1..n]` `zip`, Comment |
+| **Tuples** | `pair` `fst` `snd` |
+| **Strings** | `show` `strConcat` `concat` `words` `unwords` `lines` `unlines` `strLength` `strReverse` `ord` `chr` `strToChars` `charsToStr` |
+| **Functions** | Call Function. Make a Function by selecting nodes and clicking **Wrap as Function** |
+
+Leave an input empty to get a function (partial application): `+` with only `y = 1` connected is `\x -> x + 1`, ready to wire into `map`.
 
 ### Keyboard shortcuts
 
@@ -88,15 +90,17 @@ Nodes are organised into categories in the left-hand palette:
 
 ### Evaluation
 
-The canvas is a directed acyclic graph (DAG) where nodes are expressions and edges are arguments. When you click **Run**, each `Output` node traces back through its inputs, builds an expression tree (`src/engine/toExprTree.ts`), then reduces it with a small call-by-value interpreter (`src/engine/evaluate.ts`). Built-in Haskell functions are implemented in `src/engine/builtins.ts`.
+The canvas is a directed acyclic graph (DAG) where nodes are expressions and edges are arguments. When you click **Run**, each `Output` node traces back through its inputs, builds an expression tree (`src/engine/toExprTree.ts`), then reduces it with a small call-by-value interpreter (`src/engine/evaluator.ts`). Built-in Haskell functions are implemented in `src/engine/builtins.ts`. **Export .hs** turns the same expression trees into a Haskell program that runs in GHCi (`src/engine/toHaskell.ts`).
 
 ### Type system
 
-Wires are coloured by the type of value they carry — numbers (orange), booleans (green), strings (yellow), lists (purple), tuples (cyan), functions (blue). Types are tracked structurally through the graph (`src/types/haskell.ts`).
+Wires are coloured by the type of value they carry: whole numbers (blue), decimals (light blue), booleans (green), strings (yellow), lists (purple), tuples (cyan) and functions (orange, and thicker). A type checker (`src/engine/typeChecker.ts`) infers types through the graph by unification, including the function types made by leaving inputs empty. A wire that doesn't fit turns red, with a short explanation on the wire and a fuller one, with a hint, when you hover or select it. There are no type classes yet, so `+` accepts any type until the graph is run.
 
 ### Modules (named functions)
 
 Select one or more nodes and click **Wrap as Function**. Liberator extracts them into a named module node with auto-generated input/output ports, wiring cross-boundary edges automatically. Double-click a module node to navigate inside it; a breadcrumb trail appears at the top of the canvas. Inside, each parameter is a teal **Parameter** node: type in its box to rename the parameter. Clashing names are numbered automatically (`x`, `x2`, …).
+
+To use a function again, or to make it recursive, add a **Call Function** node: drag the function from **My Functions** at the top of the palette, or pick it from the Call node's dropdown. Inside a function, the **Apply** button in the breadcrumb updates its Call nodes after you change its parameters. Copying and pasting a function node also gives a Call to it.
 
 ### Auto-layout (Tidy Up)
 
@@ -107,6 +111,7 @@ Clicking **Tidy Up** applies a longest-path DAG layering algorithm (`src/utils/l
 - Graph structure (nodes, edges, subgraphs, undo/redo history) — Zustand + Immer (`src/store/graphStore.ts`)
 - UI state (selected node, clipboard) — Zustand (`src/store/uiStore.ts`)
 - Evaluation results — Zustand (`src/store/evaluationStore.ts`)
+- Wire types — Zustand (`src/store/typeStore.ts`)
 
 Graphs are serialised to plain JSON. **Save** downloads a `.json` file; **Load** reads one back in.
 
@@ -161,17 +166,21 @@ npm run lint      # Run ESLint
 src/
 ├── components/
 │   ├── canvas/          # LiberatorCanvas, WireEdge, QuickAdd
-│   ├── layout/          # AppLayout, Palette, OutputPanel, PropertiesPanel
-│   └── toolbar/         # Toolbar
+│   ├── layout/          # AppLayout, Palette, OutputPanel, PropertiesPanel, HaskellPanel
+│   ├── toolbar/         # Toolbar
+│   └── ui/              # TypeBadge
 ├── engine/
 │   ├── builtins.ts      # Built-in Haskell functions (runtime values)
-│   ├── evaluate.ts      # Expression tree evaluator
-│   └── toExprTree.ts    # Graph → expression tree
+│   ├── evaluator.ts     # Expression tree evaluator
+│   ├── toExprTree.ts    # Graph → expression tree
+│   ├── toHaskell.ts     # Expression tree → Haskell source
+│   └── typeChecker.ts   # Wire types and mismatch messages
 ├── examples/            # Built-in example programs
-├── nodes/               # One component per node type + registry
-├── store/               # graphStore, uiStore, evaluationStore
+├── nodes/               # One component per node type, registry, plain-English summaries
+├── store/               # graphStore, uiStore, evaluationStore, typeStore
 ├── types/               # haskell.ts, nodes.ts, edges.ts, values.ts
 └── utils/
+    ├── functions.ts      # User-defined functions for the palette
     ├── idGen.ts          # Unique ID generation
     ├── layout.ts         # DAG auto-layout algorithm
     └── serialise.ts      # Save/load graph JSON

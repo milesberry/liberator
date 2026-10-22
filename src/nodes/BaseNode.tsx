@@ -2,10 +2,11 @@
 // Shared shell for all Liberator node types.
 // Renders the node header, input handles on the left, output handles on the right.
 
-import { Handle, Position, useNodeId } from '@xyflow/react';
+import { Handle, Position, useNodeId, useNodesData } from '@xyflow/react';
 import { showType, wireColor } from '../types/haskell';
 import type { Port } from '../types/nodes';
-import { handleId } from '../types/nodes';
+import { handleId, type LibNode } from '../types/nodes';
+import { nodeSummary } from './summaries';
 
 // ─── Category colour bands ──────────────────────────────────────────────────
 
@@ -79,6 +80,8 @@ export function BaseNode({ kind, label, ports, children, selected, minWidth = 14
   const inputPorts  = ports.filter(p => p.direction === 'input');
   const outputPorts = ports.filter(p => p.direction === 'output');
   const headerStyle = HEADER_STYLES[kind] ?? 'bg-gray-700 text-white';
+  const nodeData = useNodesData<LibNode>(nodeId)?.data;
+  const summary = nodeData ? nodeSummary(nodeData) : undefined;
 
   return (
     <div
@@ -87,7 +90,7 @@ export function BaseNode({ kind, label, ports, children, selected, minWidth = 14
       style={{ minWidth, background: 'var(--bg-node)' }}
     >
       {/* Header */}
-      <div className={`px-2 py-1 text-xs font-semibold tracking-wide ${headerStyle}`}>
+      <div className={`px-2 py-1 text-xs font-semibold tracking-wide ${headerStyle}`} title={summary}>
         {label}
       </div>
 

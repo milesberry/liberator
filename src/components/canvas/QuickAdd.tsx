@@ -6,6 +6,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useReactFlow } from '@xyflow/react';
 import { Search } from 'lucide-react';
 import { NODE_REGISTRY, CATEGORY_LABELS, type NodeDefinition } from '../../nodes/registry';
+import { definitionSummary } from '../../nodes/summaries';
 import { useGraphStore } from '../../store/graphStore';
 
 interface QuickAddProps {
@@ -39,7 +40,8 @@ export function QuickAdd({ open, onClose }: QuickAddProps) {
   const filtered: NodeDefinition[] = q
     ? NODE_REGISTRY.filter(d =>
         d.label.toLowerCase().includes(q) ||
-        d.description.toLowerCase().includes(q)
+        d.description.toLowerCase().includes(q) ||
+        (definitionSummary(d.kind, d.subtype) ?? '').toLowerCase().includes(q)
       ).slice(0, MAX_RESULTS)
     : NODE_REGISTRY.slice(0, MAX_RESULTS);
 
@@ -132,8 +134,16 @@ export function QuickAdd({ open, onClose }: QuickAddProps) {
                   color: i === clampedIdx ? 'white' : 'var(--text-primary)',
                 }}
               >
-                <span className="text-sm font-medium">{def.label}</span>
-                <span className="text-xs"
+                <span className="flex flex-col min-w-0">
+                  <span className="text-sm font-medium">{def.label}</span>
+                  {/* Summary of the highlighted entry, so keyboard users get it too */}
+                  {i === clampedIdx && definitionSummary(def.kind, def.subtype) && (
+                    <span className="text-xs" style={{ color: '#dbeafe' }}>
+                      {definitionSummary(def.kind, def.subtype)}
+                    </span>
+                  )}
+                </span>
+                <span className="text-xs flex-shrink-0 ml-2"
                       style={{ color: i === clampedIdx ? '#bfdbfe' : 'var(--text-faint)' }}>
                   {CATEGORY_LABELS[def.category]}
                 </span>

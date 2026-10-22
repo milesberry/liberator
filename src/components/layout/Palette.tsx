@@ -6,6 +6,7 @@ import { Search } from 'lucide-react';
 import { NODE_REGISTRY, CATEGORY_LABELS, CATEGORY_ORDER, groupByCategory, type NodeDefinition } from '../../nodes/registry';
 import { useGraphStore } from '../../store/graphStore';
 import { listFunctions, signatureOf } from '../../utils/functions';
+import { definitionSummary } from '../../nodes/summaries';
 import type { ModuleNodeData } from '../../types/nodes';
 
 function PaletteItem({ def }: { def: NodeDefinition }) {
@@ -23,11 +24,17 @@ function PaletteItem({ def }: { def: NodeDefinition }) {
       style={{ color: 'var(--text-primary)' }}
       onMouseEnter={e => (e.currentTarget.style.background = 'var(--ctrl-hover)')}
       onMouseLeave={e => (e.currentTarget.style.background = '')}
-      title={def.description}
+      title={paletteTooltip(def)}
     >
       {def.label}
     </div>
   );
+}
+
+// Plain-English summary first, then the Haskell type signature
+function paletteTooltip(def: NodeDefinition): string {
+  const summary = definitionSummary(def.kind, def.subtype);
+  return summary ? `${summary}\n${def.description}` : def.description;
 }
 
 // A user-defined Function: dropping it creates a Call node bound to that name
@@ -59,7 +66,8 @@ export function Palette() {
   const filtered = query.trim()
     ? NODE_REGISTRY.filter(d =>
         d.label.toLowerCase().includes(query.toLowerCase()) ||
-        d.description.toLowerCase().includes(query.toLowerCase())
+        d.description.toLowerCase().includes(query.toLowerCase()) ||
+        (definitionSummary(d.kind, d.subtype) ?? '').toLowerCase().includes(query.toLowerCase())
       )
     : null;
 

@@ -14,6 +14,7 @@ import { handleId } from '../types/nodes';
 import { useGraphStore } from '../store/graphStore';
 import { showType, wireColor } from '../types/haskell';
 import { TUnknown } from '../types/haskell';
+import { nodeSummary } from './summaries';
 
 // ─── Inline port handle ───────────────────────────────────────────────────
 function PortHandle({ nodeId, port }: { nodeId: string; port: Port }) {
@@ -91,7 +92,8 @@ export function CallNode({ data, selected }: NodeProps<LibNode>) {
       style={{ minWidth: 160, background: 'var(--bg-node)' }}
     >
       {/* Header */}
-      <div className="px-2 py-1 bg-indigo-700 text-white text-xs font-semibold tracking-wide flex items-center gap-1.5">
+      <div className="px-2 py-1 bg-indigo-700 text-white text-xs font-semibold tracking-wide flex items-center gap-1.5"
+           title={nodeSummary(data)}>
         <PhoneCall size={11} />
         <span>Call Function</span>
       </div>
