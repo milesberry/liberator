@@ -168,7 +168,15 @@ function buildModuleExpr(
 
   // Stable parameter names for each input port — use the human-readable label
   // so the generated Haskell reads "sum' xs = …" not "sum' in_abc123 = …"
-  const paramNames = md.inputPorts.map((p, i) => labelToParamName(p.label, i));
+  // Duplicate labels would make parameters shadow one another, so suffix repeats
+  const seenParams = new Set<string>();
+  const paramNames = md.inputPorts.map((p, i) => {
+    const base = labelToParamName(p.label, i);
+    let name = base;
+    for (let k = 2; seenParams.has(name); k++) name = `${base}${k}`;
+    seenParams.add(name);
+    return name;
+  });
 
   // Resolve the actual argument expressions from the outer call site
   const argExprs: Array<ExprTree | null> = md.inputPorts.map((port) =>

@@ -11,6 +11,7 @@ import { handleId } from '../types/nodes';
 
 const HEADER_STYLES: Record<string, string> = {
   value:    'bg-slate-600 text-white',
+  param:    'bg-cyan-700 text-white',
   primop:   'bg-blue-700 text-white',
   listop:   'bg-purple-700 text-white',
   hof:      'bg-orange-600 text-white',

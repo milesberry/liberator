@@ -343,19 +343,24 @@ Leave null, head, and tail **xs** inputs unconnected.
 
 **Step 3.** Select all seven nodes and click **Wrap as function**, name it `sum'`.
 
-The module chip appears. Inside it there are **four anchor nodes**: three labelled `xs`
-(one each for null, head, and tail) and one labelled `y` (for the unconnected `+` input).
+The module chip appears. Inside it there are four teal **Parameter** nodes, one for each
+unconnected input: `xs`, `xs2` and `xs3` (for null, head and tail) and `y` (for the
+unconnected `+` input). Repeated names get a number added so that no two parameters clash.
 The Call node already has its ports at this point.
+
+> **Parameter nodes.** The box on a Parameter node holds the parameter's *name*, not a
+> value. Type in it to rename the parameter. The function and any Call nodes update straight
+> away.
 
 ### Inside — tidy, Apply, wire
 
 **Step 4.** Double-click the module to enter its subgraph.
 
-Delete two of the three `xs` anchors and the `y` anchor — keep just one `xs` anchor.
-Wire it to the nodes that lost theirs:
-- `xs` anchor → null **xs**
-- `xs` anchor → head **xs**
-- `xs` anchor → tail **xs**
+Delete the `xs2`, `xs3` and `y` Parameter nodes, keeping just `xs`.
+Wire `xs` to the nodes that lost theirs:
+- `xs` → null **xs**
+- `xs` → head **xs**
+- `xs` → tail **xs**
 
 **Step 5.** Click **Apply** in the breadcrumb bar. The module updates to a single `xs`
 input port and the Call node refreshes.
@@ -375,7 +380,7 @@ input port and the Call node refreshes.
 
 Click **Run** → `15`
 
-> **Why four anchors?** Every unconnected input port becomes a separate module input when
+> **Why four parameters?** Every unconnected input port becomes a separate parameter when
 > wrapping — there is no automatic merging. The `case [ ] of` version (section 8b) avoids
 > this because all list work flows through a single node with one `xs` input.
 
@@ -416,14 +421,14 @@ Leave **case xs** and **Add b** unconnected — both will be wired inside the mo
 **Step 3.** Select all five nodes and click **Wrap as function** at the bottom of the canvas.
 Name it `sum'`.
 
-The module chip appears with two anchor nodes inside (`xs` and `y`). The `y` anchor is a
-placeholder for the unconnected **Add b** port. The Call node already has its ports.
+The module chip appears with two **Parameter** nodes inside (`xs` and `y`). The `y`
+parameter is a placeholder for the unconnected **Add b** port. The Call node already has its ports.
 
 ### Inside — tidy, Apply, wire
 
 **Step 4.** Double-click the module chip to enter its subgraph.
 
-Select the **`y` anchor** and delete it.
+Select the **`y`** Parameter node and delete it.
 
 **Step 5.** Click **Apply** in the breadcrumb bar. The module updates to a single `xs`
 input port and the Call node refreshes.
@@ -449,6 +454,80 @@ The Haskell panel shows:
 ```haskell
 sum' xs = case xs of { [] -> 0; (x:xs') -> x + sum' xs' }
 ```
+
+---
+
+## 8c. Two parameters — `power`
+
+```haskell
+power b n = if n == 0 then 1 else b * power b (n - 1)
+```
+
+This recursive function has two parameters, a base `b` and an exponent `n`. Liberator has
+no built-in power operator, so this is a good one to build yourself.
+
+### Build, wire, and wrap
+
+**Step 1.** Drag these nodes onto the canvas, **starting with Multiply**. Parameters appear
+in the order their nodes were placed, so placing Multiply first gives `power b n` rather
+than `power n b`.
+
+| Node | Setting |
+|------|---------|
+| **Multiply (\*)** | — |
+| **Equal (==)** | — |
+| **Integer** | `0` |
+| **Integer** | `1` (the base case) |
+| **Subtract (-)** | — |
+| **Integer** | `1` (to subtract) |
+| **If / Then / Else** | — |
+| **Call Function** | type `power` in the name field |
+| **Output** | label it `power` |
+
+**Step 2.** Wire everything that doesn't involve `b` or `n`:
+- Integer `0` → `==` **y**
+- `==` result → If **if**
+- first Integer `1` → If **then**
+- second Integer `1` → `-` **y**
+- `*` result → If **else**
+- If result → Output
+
+Leave the Call node unwired for now — its ports appear once the function exists.
+
+**Step 3.** Select all nine nodes, click **Wrap 9 nodes as Function**, and name it `power`.
+
+### Inside — rename, tidy, Apply, wire
+
+**Step 4.** Double-click `power` to go inside. There are four teal **Parameter** nodes,
+named after the ports they came from: `x` (feeding `*` **x**), `y` (feeding `*` **y**),
+`x2` (feeding `==` **x**) and `x3` (feeding `-` **x**). Click **Fit View** if they're off-screen.
+
+**Step 5.** Rename by typing in the Parameter boxes: change `x` to `b`, and `x2` to `n`.
+The Call node's ports update as you type.
+
+**Step 6.** Delete the `y` and `x3` Parameter nodes, then wire `n` → `-` **x**, so that
+`n` feeds both `==` and `-`.
+
+**Step 7.** Click **Apply** in the breadcrumb bar. `power` and the Call node now have
+exactly two inputs, `b` and `n`.
+
+**Step 8.** Wire the recursive call:
+- `b` → Call **b**
+- `-` result → Call **n**
+- Call **power** (output) → `*` **y**
+
+The red "Cannot match" warning on the `*` wire disappears at this point: until `*` **y**
+is connected, `*` produces a function rather than a number.
+
+**Step 9.** Navigate back out.
+
+### Testing
+
+**Step 10.** On the outer canvas, wire Integer `2` → **b**, Integer `10` → **n**, and
+`power` → **Output**. Click **Run** → `1024`.
+
+> **Renaming versus deleting.** Renaming a parameter takes effect immediately. Deleting
+> one doesn't — click **Apply** afterwards so the function and its Call nodes catch up.
 
 ---
 
