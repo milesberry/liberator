@@ -2,12 +2,27 @@
 
 import { create } from 'zustand';
 import type { LibNode, LibNodeData } from '../types/nodes';
+import type { LibEdge } from '../types/edges';
 
 // A clipboard entry: a deep-plain-object snapshot of a node (no Immer proxies)
 export interface ClipboardNode {
+  id: string;                         // the copied node's id, so wires can be remapped
   data: LibNodeData;
   position: { x: number; y: number };
   type: string;
+}
+
+// A wire between two copied nodes, by their original ids and port ids
+export interface ClipboardEdge {
+  source: string;
+  sourcePort: string;
+  target: string;
+  targetPort: string;
+}
+
+export interface Clipboard {
+  nodes: ClipboardNode[];
+  edges: ClipboardEdge[];
 }
 
 export type Theme = 'dark' | 'light';
@@ -16,7 +31,7 @@ interface UIState {
   selectedNodeId:  string | null;
   selectedNodeIds: string[];                // multi-selection (mirrors RF selection)
   selectedEdgeId:  string | null;           // single selected edge
-  clipboard:       ClipboardNode[] | null;  // null = nothing copied yet
+  clipboard:       Clipboard | null;        // null = nothing copied yet
   graphNavStack:   string[];
   paletteSearchQuery: string;
   activeOutputTab: 'results' | 'errors';
@@ -26,7 +41,7 @@ interface UIState {
   setSelectedNodeId:  (id: string | null) => void;
   setSelectedNodeIds: (ids: string[]) => void;
   setSelectedEdgeId:  (id: string | null) => void;
-  setClipboard:       (nodes: ClipboardNode[] | null) => void;
+  setClipboard:       (clipboard: Clipboard | null) => void;
   pushSubgraph: (subgraphId: string) => void;
   popSubgraph:  () => void;
   setSearchQuery: (q: string) => void;
@@ -59,7 +74,7 @@ export const useUIStore = create<UIState>((set) => ({
   setSelectedNodeId:  (id)  => set({ selectedNodeId: id }),
   setSelectedNodeIds: (ids) => set({ selectedNodeIds: ids }),
   setSelectedEdgeId:  (id)  => set({ selectedEdgeId: id }),
-  setClipboard:       (nodes) => set({ clipboard: nodes }),
+  setClipboard:       (clipboard) => set({ clipboard }),
   pushSubgraph: (id) => set((s) => ({ graphNavStack: [...s.graphNavStack, id] })),
   popSubgraph:  ()   => set((s) => ({ graphNavStack: s.graphNavStack.slice(0, -1) })),
   setSearchQuery: (q)   => set({ paletteSearchQuery: q }),
@@ -73,15 +88,28 @@ export const useUIStore = create<UIState>((set) => ({
 }));
 
 // ─── Helper: snapshot selected nodes from the active graph ─────────────────
-// Returns a ClipboardNode[] that can be stored in uiStore.clipboard.
+// Returns a Clipboard that can be stored in uiStore.clipboard: the selected
+// nodes, plus the wires that run between them. Wires to unselected nodes are
+// left behind, so a pasted copy never shares inputs with the original.
 // Handles deep-cloning data (strips Immer proxies via JSON round-trip).
-export function snapshotNodes(nodes: LibNode[], ids: Set<string>): ClipboardNode[] {
-  return nodes
-    .filter(n => ids.has(n.id))
-    .map(n => ({
-      // JSON round-trip gives a plain object — safe to store outside Immer
-      data:     JSON.parse(JSON.stringify(n.data)) as LibNodeData,
-      position: { x: n.position.x, y: n.position.y },
-      type:     n.type ?? n.data.kind,
-    }));
+export function snapshotNodes(nodes: LibNode[], edges: LibEdge[], ids: Set<string>): Clipboard {
+  return {
+    nodes: nodes
+      .filter(n => ids.has(n.id))
+      .map(n => ({
+        id:       n.id,
+        // JSON round-trip gives a plain object — safe to store outside Immer
+        data:     JSON.parse(JSON.stringify(n.data)) as LibNodeData,
+        position: { x: n.position.x, y: n.position.y },
+        type:     n.type ?? n.data.kind,
+      })),
+    edges: edges
+      .filter(e => ids.has(e.source) && ids.has(e.target))
+      .map(e => ({
+        source:     e.source,
+        sourcePort: e.sourceHandle?.split('__')[1] ?? '',
+        target:     e.target,
+        targetPort: e.targetHandle?.split('__')[1] ?? '',
+      })),
+  };
 }
