@@ -199,10 +199,10 @@ interface CanvasInnerProps {
   onRegisterTidyUp: (fn: () => void) => void;
 }
 
-// Nodes of whichever graph is on screen: the root, or the open function's subgraph
-function activeGraphNodes(): LibNode[] {
-  const { nodes, subgraphs, activeSubgraphId } = useGraphStore.getState();
-  return (activeSubgraphId && subgraphs[activeSubgraphId]?.nodes) || nodes;
+// Whichever graph is on screen: the root, or the open function's subgraph
+function activeGraph(): { nodes: LibNode[]; edges: LibEdge[] } {
+  const { nodes, edges, subgraphs, activeSubgraphId } = useGraphStore.getState();
+  return (activeSubgraphId && subgraphs[activeSubgraphId]) || { nodes, edges };
 }
 
 function CanvasInner({ onRegisterTidyUp }: CanvasInnerProps) {
@@ -239,17 +239,17 @@ function CanvasInner({ onRegisterTidyUp }: CanvasInnerProps) {
 
       if (ctrl && e.key === 'c') {
         e.preventDefault();
-        const activeNodes = activeGraphNodes();
+        const { nodes, edges } = activeGraph();
         const ids = new Set(useUIStore.getState().selectedNodeIds);
-        if (ids.size > 0) setClipboard(snapshotNodes(activeNodes, ids));
+        if (ids.size > 0) setClipboard(snapshotNodes(nodes, edges, ids));
         return;
       }
       if (ctrl && e.key === 'x') {
         e.preventDefault();
-        const activeNodes = activeGraphNodes();
+        const { nodes, edges } = activeGraph();
         const ids = new Set(useUIStore.getState().selectedNodeIds);
         if (ids.size > 0) {
-          setClipboard(snapshotNodes(activeNodes, ids));
+          setClipboard(snapshotNodes(nodes, edges, ids));
           removeNodes([...ids]);
           setSelectedNodeIds([]);
         }
@@ -258,7 +258,14 @@ function CanvasInner({ onRegisterTidyUp }: CanvasInnerProps) {
       if (ctrl && e.key === 'v') {
         e.preventDefault();
         const cb = useUIStore.getState().clipboard;
-        if (cb && cb.length > 0) pasteNodes(cb);
+        if (cb && cb.nodes.length > 0) {
+          pasteNodes(cb);
+          // Shift the clipboard along, so pasting again doesn't land on top of this copy
+          setClipboard({
+            ...cb,
+            nodes: cb.nodes.map(n => ({ ...n, position: { x: n.position.x + 24, y: n.position.y + 24 } })),
+          });
+        }
         return;
       }
     };

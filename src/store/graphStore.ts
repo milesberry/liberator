@@ -10,11 +10,12 @@ import {
   type Connection, type XYPosition,
 } from '@xyflow/react';
 import type { LibNode, ModuleNodeData, CallNodeData, Port } from '../types/nodes';
+import { handleId } from '../types/nodes';
 import type { LibEdge } from '../types/edges';
 import { defaultEdgeData } from '../types/edges';
 import { createNode } from '../nodes/registry';
 import type { NodeDefinition } from '../nodes/registry';
-import type { ClipboardNode } from './uiStore';
+import type { Clipboard } from './uiStore';
 import { newId } from '../utils/idGen';
 import { callDataFor } from '../utils/functions';
 import { TUnknown } from '../types/haskell';
@@ -201,7 +202,7 @@ interface GraphState {
   addPreparedNode: (node: LibNode) => void;   // root graph, undoable
   removeNode:  (id: string) => void;
   removeNodes: (ids: string[]) => void;
-  pasteNodes:  (clipboard: ClipboardNode[], offset?: { x: number; y: number }) => void;
+  pasteNodes:  (clipboard: Clipboard, offset?: { x: number; y: number }) => void;
   updateNodeData: (id: string, updater: (data: LibNode['data']) => void) => void;
   loadGraph: (nodes: LibNode[], edges: LibEdge[], subgraphs?: Record<string, SubgraphState>) => void;
   clearGraph: () => void;
@@ -344,8 +345,16 @@ export const useGraphStore = create<GraphState>()(
     pasteNodes: (clipboard, offset = { x: 24, y: 24 }) => {
       set((state) => {
         pushHistory(state);
-        for (const entry of clipboard) {
+        // Paste into whichever graph is on screen — inside a function, that's its subgraph
+        const sub = state.activeSubgraphId ? state.subgraphs[state.activeSubgraphId] : undefined;
+        const graph = sub ?? state;
+        // The pasted nodes become the selection, so they can be moved as a group
+        for (const n of graph.nodes) n.selected = false;
+        const freshIds = new Map<string, string>();
+        const pasted: LibNode[] = [];
+        for (const entry of clipboard.nodes) {
           const freshId = newId();
+          freshIds.set(entry.id, freshId);
           // Deep-clone data so each paste gets its own copy; reset port connections
           let data = JSON.parse(JSON.stringify(entry.data)) as LibNode['data'];
           let type = entry.type;
@@ -374,11 +383,30 @@ export const useGraphStore = create<GraphState>()(
             type,
             position: { x: entry.position.x + offset.x, y: entry.position.y + offset.y },
             data,
+            selected: true,
           };
-          // Paste into whichever graph is on screen — inside a function, that's its subgraph
-          const sub = state.activeSubgraphId ? state.subgraphs[state.activeSubgraphId] : undefined;
-          if (sub) sub.nodes.push(node);
-          else state.nodes.push(node);
+          graph.nodes.push(node);
+          pasted.push(node);
+        }
+        // Reconnect the wires that ran between the copied nodes
+        const byId = new Map(pasted.map(n => [n.id, n]));
+        for (const ce of clipboard.edges) {
+          const src = byId.get(freshIds.get(ce.source) ?? '');
+          const tgt = byId.get(freshIds.get(ce.target) ?? '');
+          const srcPort = src?.data.ports.find(p => p.id === ce.sourcePort);
+          const tgtPort = tgt?.data.ports.find(p => p.id === ce.targetPort);
+          if (!src || !tgt || !srcPort || !tgtPort) continue;
+          graph.edges.push({
+            id: newId(),
+            source: src.id,
+            target: tgt.id,
+            sourceHandle: handleId(src.id, srcPort.id),
+            targetHandle: handleId(tgt.id, tgtPort.id),
+            type: 'lib',
+            data: defaultEdgeData(),
+          });
+          srcPort.connected = true;
+          tgtPort.connected = true;
         }
       });
     },

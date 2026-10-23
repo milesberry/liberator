@@ -41,9 +41,9 @@ Leave an input empty to get a function (partial application): `+` with only `y =
 | `Ctrl/Cmd + Z` | Undo |
 | `Ctrl/Cmd + Shift+Z` or `Ctrl+Y` | Redo |
 | `Ctrl/Cmd + K` | Quick-add spotlight — type to search and drop any node |
-| `Ctrl/Cmd + C` | Copy selected nodes |
+| `Ctrl/Cmd + C` | Copy selected nodes, with the wires between them |
 | `Ctrl/Cmd + X` | Cut selected nodes |
-| `Ctrl/Cmd + V` | Paste nodes |
+| `Ctrl/Cmd + V` | Paste; the pasted copy is selected, ready to drag |
 | `Delete` / `Backspace` | Delete selected nodes |
 
 ### Toolbar
