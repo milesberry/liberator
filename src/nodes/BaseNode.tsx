@@ -4,6 +4,7 @@
 
 import { Handle, Position, useNodeId, useNodesData } from '@xyflow/react';
 import { showType, wireColor } from '../types/haskell';
+import { useTypeStore } from '../store/typeStore';
 import type { Port } from '../types/nodes';
 import { handleId, type LibNode } from '../types/nodes';
 import { nodeSummary } from './summaries';
@@ -37,13 +38,15 @@ interface PortHandleProps {
 
 function PortHandle({ nodeId, port, compatible }: PortHandleProps) {
   const hId = handleId(nodeId, port.id);
-  const color = wireColor(port.type, compatible ?? null);
+  // Colour by the type the checker has inferred, so a port shows what it accepts
+  const type = useTypeStore(s => s.portTypes.get(hId)) ?? port.type;
+  const color = wireColor(type, compatible ?? null);
   const isInput = port.direction === 'input';
 
   return (
     <div
       className={`relative flex items-center gap-1 my-1 ${isInput ? 'justify-start' : 'justify-end'}`}
-      title={showType(port.type)}
+      title={showType(type)}
     >
       <Handle
         id={hId}

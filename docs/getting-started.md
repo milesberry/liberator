@@ -471,9 +471,10 @@ no built-in power operator, so this is a good one to build yourself.
 
 ### Build, wire, and wrap
 
-**Step 1.** Drag these nodes onto the canvas, **starting with Multiply**. Parameters appear
-in the order their nodes were placed, so placing Multiply first gives `power b n` rather
-than `power n b`.
+**Step 1.** Drag these nodes onto the canvas, with **Multiply above the others**.
+Parameters are numbered from the top of the canvas down, so putting Multiply highest gives
+`power b n` rather than `power n b`. (If they come out the wrong way round, you can swap
+them later: see Step 7.)
 
 | Node | Setting |
 |------|---------|
@@ -501,9 +502,9 @@ Leave the Call node unwired for now — its ports appear once the function exist
 
 ### Inside — rename, tidy, Apply, wire
 
-**Step 4.** Double-click `power` to go inside. There are four teal **Parameter** nodes,
-named after the ports they came from: `x` (feeding `*` **x**), `y` (feeding `*` **y**),
-`x2` (feeding `==` **x**) and `x3` (feeding `-` **x**). Click **Fit View** if they're off-screen.
+**Step 4.** Double-click `power` to go inside. On the left there are four teal **Parameter**
+nodes, numbered 1 to 4 and named after the ports they came from: `x` (feeding `*` **x**),
+`y` (feeding `*` **y**), `x2` (feeding `==` **x**) and `x3` (feeding `-` **x**).
 
 **Step 5.** Rename by typing in the Parameter boxes: change `x` to `b`, and `x2` to `n`.
 The Call node's ports update as you type.
@@ -512,15 +513,16 @@ The Call node's ports update as you type.
 `n` feeds both `==` and `-`.
 
 **Step 7.** Click **Apply** in the breadcrumb bar. `power` and the Call node now have
-exactly two inputs, `b` and `n`.
+exactly two inputs, `b` and `n`. If `n` came out first, select it and click the **↓** button
+in the Properties panel, or simply drag it below `b`: parameters always go top to bottom.
 
 **Step 8.** Wire the recursive call:
 - `b` → Call **b**
 - `-` result → Call **n**
 - Call **power** (output) → `*` **y**
 
-The red "Cannot match" warning on the `*` wire disappears at this point: until `*` **y**
-is connected, `*` produces a function rather than a number.
+The red warning on the `*` wire disappears at this point: until `*` **y** is connected,
+`*` produces a function rather than a number.
 
 **Step 9.** Navigate back out.
 
@@ -531,6 +533,7 @@ is connected, `*` produces a function rather than a number.
 
 > **Renaming versus deleting.** Renaming a parameter takes effect immediately. Deleting
 > one doesn't — click **Apply** afterwards so the function and its Call nodes catch up.
+> To give a function an extra input, click **+ Parameter** in the breadcrumb bar.
 
 > **My Functions.** Once `power` exists, it is listed as `power b n` under **My Functions**
 > at the top of the palette. Drag it onto the canvas, or inside another function, to call

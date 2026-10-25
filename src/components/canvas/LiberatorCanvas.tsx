@@ -15,7 +15,7 @@ import {
   type OnNodesChange, type OnEdgesChange, type OnConnect,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { ChevronRight, Package, RefreshCw } from 'lucide-react';
+import { ChevronRight, Package, Plus, RefreshCw } from 'lucide-react';
 
 import { useGraphStore } from '../../store/graphStore';
 import { useUIStore, snapshotNodes } from '../../store/uiStore';
@@ -67,7 +67,7 @@ const EDGE_TYPES: EdgeTypes = {
 
 // ─── Breadcrumb navigation bar ─────────────────────────────────────────────
 function BreadcrumbNav() {
-  const { navStack, popSubgraph, syncModuleNode, activeSubgraphId, nodes: rootNodes } = useGraphStore();
+  const { navStack, popSubgraph, syncModuleNode, addParameter, activeSubgraphId, nodes: rootNodes } = useGraphStore();
   const [applyFlash, setApplyFlash] = useState(false);
   if (navStack.length === 0) return null;
 
@@ -122,6 +122,16 @@ function BreadcrumbNav() {
         );
       })}
       <div className="flex-1" />
+      {/* Give the function another input */}
+      <button
+        onClick={addParameter}
+        title="Add a new parameter (input) to this function"
+        className="flex items-center gap-1 transition-colors text-[10px] rounded px-2 py-0.5 mr-1 hover:text-amber-500"
+        style={{ color: 'var(--text-muted)', border: '1px solid var(--border-subtle)' }}
+      >
+        <Plus size={10} />
+        Parameter
+      </button>
       {/* Apply — sync module ports + refresh Call nodes without navigating out */}
       <button
         onClick={handleApply}
@@ -418,6 +428,8 @@ function CanvasInner({ onRegisterTidyUp }: CanvasInnerProps) {
         edges={activeEdges}
         nodeTypes={NODE_TYPES}
         edgeTypes={EDGE_TYPES}
+        // Double-click opens functions, so it mustn't also zoom the canvas
+        zoomOnDoubleClick={false}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
