@@ -13,18 +13,20 @@ import type { LibNode, ModuleNodeData, CallNodeData, Port } from '../types/nodes
 import { handleId } from '../types/nodes';
 import { useGraphStore } from '../store/graphStore';
 import { showType, wireColor } from '../types/haskell';
+import { useTypeStore } from '../store/typeStore';
 import { TUnknown } from '../types/haskell';
 import { nodeSummary } from './summaries';
 
 // ─── Inline port handle ───────────────────────────────────────────────────
 function PortHandle({ nodeId, port }: { nodeId: string; port: Port }) {
   const hId = handleId(nodeId, port.id);
-  const color = wireColor(port.type, null);
+  const type = useTypeStore(s => s.portTypes.get(hId)) ?? port.type;
+  const color = wireColor(type, null);
   const isInput = port.direction === 'input';
   return (
     <div
       className={`relative flex items-center gap-1 my-0.5 ${isInput ? 'justify-start' : 'justify-end'}`}
-      title={showType(port.type)}
+      title={showType(type)}
     >
       <Handle
         id={hId}

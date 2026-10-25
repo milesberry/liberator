@@ -26,10 +26,16 @@ export interface CheckedEdge {
 
 // ─── Main entry point ─────────────────────────────────────────────────────
 
-export function checkGraph(
+export function checkGraph(nodes: LibNode[], edges: LibEdge[]): CheckedEdge[] {
+  return analyseGraph(nodes, edges).edges;
+}
+
+// The edge results plus the inferred type of every port, keyed by handle id
+// (nodeId__portId), so the Properties panel can say what a port accepts
+export function analyseGraph(
   nodes: LibNode[],
   edges: LibEdge[],
-): CheckedEdge[] {
+): { edges: CheckedEdge[]; portTypes: Map<string, HaskellType> } {
   const nodeById = new Map(nodes.map(n => [n.id, n]));
 
   type Subst = Map<string, HaskellType>;
@@ -116,7 +122,16 @@ export function checkGraph(
     };
   });
 
-  return checkedEdges;
+  const portTypes = new Map<string, HaskellType>();
+  for (const node of nodes) {
+    for (const port of node.data.ports) {
+      portTypes.set(`${node.id}__${port.id}`, port.direction === 'output'
+        ? effectiveOutputType(node.id, port.id)
+        : applySubst(subst, port.type));
+    }
+  }
+
+  return { edges: checkedEdges, portTypes };
 
   // A student-friendly explanation of a type mismatch on one wire. The common
   // slip is a function where a value is wanted, or vice versa, so those cases

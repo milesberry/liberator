@@ -9,7 +9,7 @@
 import { useEffect } from 'react';
 import { useGraphStore } from '../store/graphStore';
 import { useTypeStore }  from '../store/typeStore';
-import { checkGraph }    from '../engine/typeChecker';
+import { analyseGraph }  from '../engine/typeChecker';
 
 export function useTypeInference() {
   useEffect(() => {
@@ -19,8 +19,8 @@ export function useTypeInference() {
       const sub = activeId ? state.subgraphs[activeId] : null;
       const nodes = sub?.nodes ?? state.nodes;
       const edges = sub?.edges ?? state.edges;
-      const checked = checkGraph(nodes, edges);
-      useTypeStore.getState().setCheckedEdges(checked);
+      const { edges: checked, portTypes } = analyseGraph(nodes, edges);
+      useTypeStore.getState().setCheckedEdges(checked, portTypes);
     };
 
     // Zustand 5: subscribe takes a plain (state, prevState) => void listener

@@ -63,14 +63,25 @@ function app2(builtinName: string, a: ExprTree, b: ExprTree): ExprTree {
   return { tag: 'App', fn: { tag: 'App', fn: { tag: 'Builtin', name: builtinName }, arg: a }, arg: b };
 }
 
+// What's wrong with a value node's literal, if anything (shown on the node)
+export function literalProblem(valueType: string, literal: string): string | undefined {
+  const v = parseLiteral(valueType, literal);
+  return v.tag === 'VError' ? v.message : undefined;
+}
+
 // ─── Parse a literal string → HaskellValue ────────────────────────────────
 
 function parseLiteral(valueType: string, literal: string): HaskellValue {
   const s = literal.trim();
   switch (valueType) {
     case 'Int': {
-      const n = parseInt(s, 10);
-      return isNaN(n) ? VError(`Not an integer: "${s}"`) : VInt(n);
+      // parseInt would quietly turn 2.5 into 2, so insist on a whole number
+      if (!/^[-+]?\d+$/.test(s)) {
+        return VError(/^[-+]?\d*\.\d+$/.test(s)
+          ? `${s} isn't a whole number: use a Float for decimals`
+          : `Not a whole number: "${s}"`);
+      }
+      return VInt(parseInt(s, 10));
     }
     case 'Float': {
       const n = parseFloat(s);

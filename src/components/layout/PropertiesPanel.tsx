@@ -1,37 +1,49 @@
 // ─── Properties Panel ──────────────────────────────────────────────────────
 // Right sidebar. Shows info about the selected node or edge.
 
-import { Trash2 } from 'lucide-react';
+import { Trash2, ArrowUp, ArrowDown } from 'lucide-react';
 import { useUIStore }   from '../../store/uiStore';
-import { useGraphStore } from '../../store/graphStore';
+import { useGraphStore, parameterAnchors } from '../../store/graphStore';
 import { useTypeStore }  from '../../store/typeStore';
 import { findDefinition } from '../../nodes/registry';
 import { nodeSummary } from '../../nodes/summaries';
-import { wireColor, showType, TUnknown } from '../../types/haskell';
+import { wireColor, showType, TUnknown, type HaskellType } from '../../types/haskell';
 import type { LibNodeData, Port } from '../../types/nodes';
 
 // ─── Port label row ────────────────────────────────────────────────────────
 
 interface PortRowProps {
   port: Port;
+  inferred?: HaskellType;   // the type the checker has worked out for this port
   onRename: (newLabel: string) => void;
 }
 
-// Registry entry for a node: operators are keyed by op, values by their type
+// Registry entry for a node: operators are keyed by op, values by their type.
+// A function's Parameter and output nodes aren't palette entries, so have none.
 function definitionFor(data: LibNodeData) {
-  const d = data as { op?: string; valueType?: string };
+  const d = data as { op?: string; valueType?: string; _modulePortId?: string };
+  if (d._modulePortId) return undefined;
   return findDefinition(data.kind, d.op ?? d.valueType);
 }
 
-function PortRow({ port, onRename }: PortRowProps) {
-  const color = wireColor(port.type, null);
+// Heading and subheading for a node that has no registry entry
+function headingFor(data: LibNodeData): [string, string] {
+  const d = data as { name?: string; _modulePortId?: string };
+  if (data.kind === 'module') return [d.name ?? 'Function', 'Function'];
+  if (d._modulePortId) return data.kind === 'value' ? ['Parameter', 'Function input'] : ['Output', 'Function result'];
+  return [data.kind, data.kind];
+}
+
+function PortRow({ port, inferred, onRename }: PortRowProps) {
+  const type = inferred ?? port.type;
+  const color = wireColor(type, null);
   return (
     <div className="flex items-center gap-2 py-0.5">
       {/* Type colour dot */}
       <span
         className="w-2.5 h-2.5 rounded-full flex-shrink-0 border border-white/20"
         style={{ background: color }}
-        title={showType(port.type)}
+        title={showType(type)}
       />
       <input
         value={port.label}
@@ -44,6 +56,11 @@ function PortRow({ port, onRename }: PortRowProps) {
           border: '1px solid var(--border-input)',
         }}
       />
+      {/* What this port carries: once a wire fixes the type, it says so */}
+      <span className="text-[10px] font-mono flex-shrink-0 max-w-[45%] truncate"
+            style={{ color: 'var(--text-muted)' }} title={showType(type)}>
+        {showType(type)}
+      </span>
     </div>
   );
 }
@@ -152,6 +169,8 @@ export function PropertiesPanel() {
   );
   const updateNodeData = useGraphStore(s => s.updateNodeData);
   const removeNode     = useGraphStore(s => s.removeNode);
+  const portTypes      = useTypeStore(s => s.portTypes);
+  const moveParameter  = useGraphStore(s => s.moveParameter);
 
   const node = selectedNodeId ? nodes.find(n => n.id === selectedNodeId) : null;
 
@@ -272,12 +291,10 @@ export function PropertiesPanel() {
           {/* Node kind + label */}
           <div>
             <p className="text-sm font-semibold leading-tight" style={{ color: 'var(--text-primary)' }}>
-              {definitionFor(node.data)?.label
-                ?? (node.data.kind === 'module' ? (node.data as { name?: string }).name : undefined)
-                ?? node.data.kind}
+              {definitionFor(node.data)?.label ?? headingFor(node.data)[0]}
             </p>
             <p className="text-xs capitalize mt-0.5" style={{ color: 'var(--text-faint)' }}>
-              {node.data.kind === 'module' ? 'Function' : node.data.kind}
+              {definitionFor(node.data) ? node.data.kind : headingFor(node.data)[1]}
               {(node.data as any).op ? ` · ${(node.data as any).op}` : ''}
             </p>
           </div>
@@ -299,6 +316,28 @@ export function PropertiesPanel() {
             ) : null;
           })()}
 
+          {/* A Parameter's place in the function's inputs, with buttons to move it */}
+          {(() => {
+            if (node.data.kind !== 'value' || !(node.data as { _modulePortId?: string })._modulePortId) return null;
+            const anchors = parameterAnchors(nodes);
+            const i = anchors.findIndex(n => n.id === node.id);
+            const btn = 'p-1 rounded disabled:opacity-30';
+            const btnStyle = { border: '1px solid var(--border-subtle)', color: 'var(--text-muted)' };
+            return (
+              <div className="flex items-center gap-2 text-xs" style={{ color: 'var(--text-muted)' }}>
+                <span className="flex-1">Parameter {i + 1} of {anchors.length}</span>
+                <button className={btn} style={btnStyle} disabled={i <= 0}
+                        title="Make this an earlier parameter" onClick={() => moveParameter(node.id, -1)}>
+                  <ArrowUp size={12} />
+                </button>
+                <button className={btn} style={btnStyle} disabled={i >= anchors.length - 1}
+                        title="Make this a later parameter" onClick={() => moveParameter(node.id, 1)}>
+                  <ArrowDown size={12} />
+                </button>
+              </div>
+            );
+          })()}
+
           {/* Node-specific editable fields */}
           <NodeSpecificFields data={node.data} />
 
@@ -313,7 +352,8 @@ export function PropertiesPanel() {
                     {node.data.ports
                       .filter(p => p.direction === 'input')
                       .map(p => (
-                        <PortRow key={p.id} port={p} onRename={label => renamePort(p.id, label)} />
+                        <PortRow key={p.id} port={p} inferred={portTypes.get(`${node.id}__${p.id}`)}
+                                 onRename={label => renamePort(p.id, label)} />
                       ))}
                   </div>
                 )}
@@ -323,7 +363,8 @@ export function PropertiesPanel() {
                     {node.data.ports
                       .filter(p => p.direction === 'output')
                       .map(p => (
-                        <PortRow key={p.id} port={p} onRename={label => renamePort(p.id, label)} />
+                        <PortRow key={p.id} port={p} inferred={portTypes.get(`${node.id}__${p.id}`)}
+                                 onRename={label => renamePort(p.id, label)} />
                       ))}
                   </div>
                 )}

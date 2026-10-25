@@ -76,9 +76,19 @@ export function computeLayout(
     if (!layer.has(n.id)) layer.set(n.id, 0);
   }
 
-  // ── Step 4: group by layer, assign positions ─────────────────────────────
-  const byLayer = new Map<number, string[]>();
+  // ── Step 3b: line up all the Output nodes in the final column ────────────
+  const lastLayer = Math.max(...layer.values());
   for (const n of nodes) {
+    if (n.data.kind === 'output') layer.set(n.id, lastLayer);
+  }
+
+  // ── Step 4: group by layer, assign positions ─────────────────────────────
+  // Within a column, keep the nodes' current top-to-bottom order. Besides being
+  // less surprising, this matters inside a function, where the order of the
+  // Parameter nodes is the order of the parameters.
+  const sorted = [...nodes].sort((a, b) => a.position.y - b.position.y || a.position.x - b.position.x);
+  const byLayer = new Map<number, string[]>();
+  for (const n of sorted) {
     const l = layer.get(n.id) ?? 0;
     const bucket = byLayer.get(l) ?? [];
     bucket.push(n.id);

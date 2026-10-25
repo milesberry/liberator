@@ -34,7 +34,7 @@ Type the value into the box on the node.
 
 | Node | What it does | Example |
 |---|---|---|
-| **Integer** | A whole number. | `42`, `-7` |
+| **Integer** | A whole number. A decimal such as `2.5` makes the box turn red: use a Float for that. | `42`, `-7` |
 | **Float** | A number with a decimal point. | `3.14`, `0.5` |
 | **Bool** | One of the two truth values. | `True`, `False` |
 | **String** | Some text, in double quotes. | `"hello"` |
@@ -179,7 +179,7 @@ In Haskell a `String` is a list of characters. Liberator keeps text as its own t
 | Node | What it does |
 |---|---|
 | **Function** | A named function you've made, by selecting nodes and clicking **Wrap as Function**. Double-click it to go inside, and use the breadcrumb at the top to come back out. |
-| **Parameter** (teal, inside a Function) | One of the Function's inputs. Type in its box to rename it. Duplicate names are numbered automatically (`x`, `x2`, …). |
+| **Parameter** (teal, inside a Function) | One of the Function's inputs. Type in its box to rename it. Duplicate names are numbered automatically (`x`, `x2`, …). Parameters are numbered top to bottom, and that's the order the Function takes them in: drag one up or down, or use the ↑/↓ buttons in Properties, to change it. Click **+ Parameter** at the top of the canvas to add another. |
 | **Call Function** | Uses one of your Functions by name. This is how a Function uses itself (recursion), or how you use a Function again somewhere else. Choose the Function from the dropdown, or drag it from **My Functions** at the top of the palette. Inside a Function, click **Apply** in the breadcrumb to update its Call nodes after you add or rename parameters. |
 
 ---

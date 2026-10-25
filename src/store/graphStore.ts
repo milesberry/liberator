@@ -18,7 +18,7 @@ import type { NodeDefinition } from '../nodes/registry';
 import type { Clipboard } from './uiStore';
 import { newId } from '../utils/idGen';
 import { callDataFor } from '../utils/functions';
-import { TUnknown } from '../types/haskell';
+import { TUnknown, TVar, type HaskellType } from '../types/haskell';
 
 export interface SubgraphState {
   nodes: LibNode[];
@@ -31,6 +31,20 @@ interface GraphSnapshot {
   nodes: LibNode[];
   edges: LibEdge[];
   subgraphs: Record<string, SubgraphState>;
+}
+
+// Rename type variables belonging to one node (a_<oldId>) to another's
+function renameTypeVars(t: HaskellType, oldId: string, newId: string): HaskellType {
+  switch (t.tag) {
+    case 'TypeVar':
+      return t.name.endsWith(`_${oldId}`)
+        ? { tag: 'TypeVar', name: t.name.slice(0, -oldId.length) + newId }
+        : t;
+    case 'List':  return { tag: 'List', elem: renameTypeVars(t.elem, oldId, newId) };
+    case 'Tuple': return { tag: 'Tuple', elems: t.elems.map(e => renameTypeVars(e, oldId, newId)) };
+    case 'Fun':   return { tag: 'Fun', from: renameTypeVars(t.from, oldId, newId), to: renameTypeVars(t.to, oldId, newId) };
+    default:      return t;
+  }
 }
 
 // ─── Module sync helper ────────────────────────────────────────────────────
@@ -46,6 +60,13 @@ interface GraphSnapshot {
 //
 // If a plain Output node exists without _modulePortId it was added after
 // wrapping — we promote it to a new output port automatically.
+// A function's Parameter nodes, in parameter order: top to bottom, then left to right
+export function parameterAnchors(nodes: LibNode[]): LibNode[] {
+  return nodes
+    .filter(n => n.data.kind === 'value' && (n.data as { _modulePortId?: string })._modulePortId)
+    .sort((a, b) => a.position.y - b.position.y || a.position.x - b.position.x);
+}
+
 function syncModuleNodeInState(state: GraphState, subgraphId: string): void {
   const sub = state.subgraphs[subgraphId];
   if (!sub) return;
@@ -70,11 +91,9 @@ function syncModuleNodeInState(state: GraphState, subgraphId: string): void {
   const md = moduleNode.data as ModuleNodeData;
 
   // ── Rebuild input ports from input anchor nodes ───────────────────────────
-  const newInputPorts: Port[] = sub.nodes
-    .filter(n =>
-      n.data.kind === 'value' &&
-      (n.data as any)._modulePortId
-    )
+  // Parameters come in the order their nodes appear, top to bottom (then left
+  // to right), so moving a Parameter node up or down changes its position
+  const newInputPorts: Port[] = parameterAnchors(sub.nodes)
     .map(n => {
       const d = n.data as any;
       const resultPort = (d.ports as Port[] | undefined)?.find(p => p.id === 'result');
@@ -217,6 +236,9 @@ interface GraphState {
   setSubgraph: (subgraphId: string, nodes: LibNode[], edges: LibEdge[]) => void;
   getSubgraph: (subgraphId: string) => SubgraphState | undefined;
   syncModuleNode: (subgraphId: string) => void;
+  // Inside a function: add a new Parameter node, or move one up or down the order
+  addParameter: () => void;
+  moveParameter: (nodeId: string, direction: -1 | 1) => void;
 
   // Nav: which graph is shown on canvas ('' = root, else subgraphId)
   activeSubgraphId: string;
@@ -370,7 +392,10 @@ export const useGraphStore = create<GraphState>()(
               type = 'call';
             }
           }
-          data.ports = data.ports.map(p => ({ ...p, connected: false }));
+          // Type variables are named after the node they belong to (a_<id>), so a
+          // copy that kept them would be tied to the original: wire one to a Float
+          // and the other would demand a Float too. Rename them for the new node.
+          data.ports = data.ports.map(p => ({ ...p, connected: false, type: renameTypeVars(p.type, entry.id, freshId) }));
           // A pasted copy of a Parameter or function output is an ordinary node;
           // keeping the anchor marker would give the function duplicate ports
           const anchor = data as { _modulePortId?: string; literal?: string };
@@ -549,66 +574,85 @@ export const useGraphStore = create<GraphState>()(
         };
 
         // ── INPUT PORTS ───────────────────────────────────────────────────────
+        // Each parameter feeds one or more inner inputs. Gather them first, then
+        // create them in on-screen order (top to bottom), which is the order a
+        // student reads them in, and the order the function will take them.
+        interface ParamSpec {
+          at:      { x: number; y: number };  // where it comes from on screen
+          label:   string;
+          type:    Port['type'];
+          targets: string[];                  // inner target handles it feeds
+          outer?:  LibEdge;                   // the wire arriving from outside, if any
+        }
+        const params: ParamSpec[] = [];
+
         // Case A: dangling inner input ports (nothing connected to them at all)
         for (const node of innerNodes) {
           for (const port of node.data.ports.filter(p => p.direction === 'input')) {
             const tgtHandle = `${node.id}__${port.id}`;
             if (!innerTargetHandles.has(tgtHandle) && !crossInTargetHandles.has(tgtHandle)) {
-              const portId   = `in_${newId()}`;
-              const anchorId = newId();
-              const paramLabel = uniqueParamLabel(port.label);
-              moduleInputPorts.push({ id: portId, label: paramLabel, direction: 'input', type: port.type, connected: false });
-              subgraphAnchors.push({
-                id: anchorId, type: 'value',
-                position: { x: -220, y: inputY },
-                data: {
-                  kind: 'value', valueType: 'Int', literal: '__module_input__',
-                  ports: [{ id: 'result', label: paramLabel, direction: 'output', type: port.type, connected: false }],
-                  _modulePortId: portId,
-                } as any,
-              } as LibNode);
-              extraInnerEdges.push({
-                id: newId(), type: 'lib',
-                source: anchorId, sourceHandle: `${anchorId}__result`,
-                target: node.id,  targetHandle: tgtHandle,
-              } as LibEdge);
-              inputY += 80;
+              params.push({ at: node.position, label: port.label, type: port.type, targets: [tgtHandle] });
             }
           }
         }
 
-        // Case B: cross-in edges (an external wire is already arriving)
-        const seenCrossInTargets = new Map<string, string>(); // tgtHandle → portId
+        // Case B: cross-in edges (an external wire is already arriving). One
+        // outside value wired into several inner inputs (x * x) is one parameter.
+        const bySource = new Map<string, ParamSpec>();
         for (const e of crossIn) {
+          const srcHandle = e.sourceHandle ?? `${e.source}__result`;
           const tgtHandle = e.targetHandle ?? `${e.target}__value`;
-          if (!seenCrossInTargets.has(tgtHandle)) {
-            const portId   = `in_${newId()}`;
-            const anchorId = newId();
-            const innerNode = innerNodes.find(n => n.id === e.target);
-            const innerPort = innerNode?.data.ports.find(p => `${e.target}__${p.id}` === tgtHandle);
-            seenCrossInTargets.set(tgtHandle, portId);
-            const paramLabel = uniqueParamLabel(innerPort?.label ?? 'in');
-            moduleInputPorts.push({ id: portId, label: paramLabel, direction: 'input', type: innerPort?.type ?? TUnknown, connected: false });
-            subgraphAnchors.push({
-              id: anchorId, type: 'value',
-              position: { x: -220, y: inputY },
-              data: {
-                kind: 'value', valueType: 'Int', literal: '__module_input__',
-                ports: [{ id: 'result', label: paramLabel, direction: 'output', type: innerPort?.type ?? TUnknown, connected: false }],
-                _modulePortId: portId,
-              } as any,
-            } as LibNode);
+          const existing = bySource.get(srcHandle);
+          if (existing) {
+            if (!existing.targets.includes(tgtHandle)) existing.targets.push(tgtHandle);
+            continue;
+          }
+          const innerNode = innerNodes.find(n => n.id === e.target);
+          const innerPort = innerNode?.data.ports.find(p => `${e.target}__${p.id}` === tgtHandle);
+          const source = state.nodes.find(n => n.id === e.source);
+          const spec: ParamSpec = {
+            at: source?.position ?? innerNode?.position ?? { x: 0, y: 0 },
+            label: innerPort?.label ?? 'in',
+            type: innerPort?.type ?? TUnknown,
+            targets: [tgtHandle],
+            outer: e,
+          };
+          bySource.set(srcHandle, spec);
+          params.push(spec);
+        }
+
+        params.sort((a, b) => a.at.y - b.at.y || a.at.x - b.at.x);
+
+        // Parameter nodes go in a column just left of the wrapped nodes (and any
+        // new function outputs just right of them)
+        const minX = Math.min(...innerNodes.map(n => n.position.x));
+        const maxX = Math.max(...innerNodes.map(n => n.position.x));
+        const minY = Math.min(...innerNodes.map(n => n.position.y));
+        for (const spec of params) {
+          const portId   = `in_${newId()}`;
+          const anchorId = newId();
+          const paramLabel = uniqueParamLabel(spec.label);
+          moduleInputPorts.push({ id: portId, label: paramLabel, direction: 'input', type: spec.type, connected: false });
+          subgraphAnchors.push({
+            id: anchorId, type: 'value',
+            position: { x: minX - 240, y: minY + inputY },
+            data: {
+              kind: 'value', valueType: 'Int', literal: '__module_input__',
+              ports: [{ id: 'result', label: paramLabel, direction: 'output', type: spec.type, connected: false }],
+              _modulePortId: portId,
+            } as any,
+          } as LibNode);
+          for (const tgtHandle of spec.targets) {
             extraInnerEdges.push({
               id: newId(), type: 'lib',
               source: anchorId, sourceHandle: `${anchorId}__result`,
-              target: e.target,  targetHandle: tgtHandle,
+              target: tgtHandle.split('__')[0], targetHandle: tgtHandle,
             } as LibEdge);
-            extraOuterEdges.push({ ...e, id: newId(), target: moduleId, targetHandle: `${moduleId}__${portId}` });
-            inputY += 80;
-          } else {
-            const portId = seenCrossInTargets.get(tgtHandle)!;
-            extraOuterEdges.push({ ...e, id: newId(), target: moduleId, targetHandle: `${moduleId}__${portId}` });
           }
+          if (spec.outer) {
+            extraOuterEdges.push({ ...spec.outer, id: newId(), target: moduleId, targetHandle: `${moduleId}__${portId}` });
+          }
+          inputY += 80;
         }
 
         // ── OUTPUT PORTS ──────────────────────────────────────────────────────
@@ -635,7 +679,7 @@ export const useGraphStore = create<GraphState>()(
             moduleOutputPorts.push({ id: portId, label: innerPort?.label ?? 'out', direction: 'output', type: innerPort?.type ?? TUnknown, connected: false });
             subgraphAnchors.push({
               id: anchorId, type: 'output',
-              position: { x: 500, y: outputY },
+              position: { x: maxX + 260, y: minY + outputY },
               data: {
                 kind: 'output', label: innerPort?.label ?? 'out', lastValue: null,
                 ports: [{ id: 'value', label: 'value', direction: 'input', type: innerPort?.type ?? TUnknown, connected: false }],
@@ -666,7 +710,7 @@ export const useGraphStore = create<GraphState>()(
               moduleOutputPorts.push({ id: portId, label: port.label, direction: 'output', type: port.type, connected: false });
               subgraphAnchors.push({
                 id: anchorId, type: 'output',
-                position: { x: 500, y: outputY },
+                position: { x: maxX + 260, y: minY + outputY },
                 data: {
                   kind: 'output', label: port.label, lastValue: null,
                   ports: [{ id: 'value', label: 'value', direction: 'input', type: port.type, connected: false }],
@@ -745,6 +789,52 @@ export const useGraphStore = create<GraphState>()(
 
     syncModuleNode: (subgraphId) => {
       set((state) => { syncModuleNodeInState(state, subgraphId); });
+    },
+
+    addParameter: () => {
+      set((state) => {
+        const sub = state.subgraphs[state.activeSubgraphId];
+        if (!sub) return;
+        pushHistory(state);
+        const anchors = parameterAnchors(sub.nodes);
+        const labels = new Set(anchors.map(n => n.data.ports[0]?.label));
+        let label = 'x';
+        for (let i = 2; labels.has(label); i++) label = `x${i}`;
+        // Below the last parameter, or left of everything if there are none yet
+        const last = anchors[anchors.length - 1];
+        const position = last
+          ? { x: last.position.x, y: last.position.y + 80 }
+          : { x: Math.min(0, ...sub.nodes.map(n => n.position.x)) - 240, y: Math.min(0, ...sub.nodes.map(n => n.position.y)) };
+        const id = newId();
+        sub.nodes.push({
+          id, type: 'value', position,
+          data: {
+            kind: 'value', valueType: 'Int', literal: '__module_input__',
+            ports: [{ id: 'result', label, direction: 'output', type: TVar(`p_${id}`), connected: false }],
+            _modulePortId: `in_${newId()}`,
+          } as any,
+        } as LibNode);
+        syncModuleNodeInState(state, state.activeSubgraphId);
+      });
+    },
+
+    moveParameter: (nodeId, direction) => {
+      set((state) => {
+        const sub = state.subgraphs[state.activeSubgraphId];
+        if (!sub) return;
+        const anchors = parameterAnchors(sub.nodes);
+        const i = anchors.findIndex(n => n.id === nodeId);
+        const j = i + direction;
+        if (i < 0 || j < 0 || j >= anchors.length) return;
+        pushHistory(state);
+        // Order follows position, so swapping places swaps the parameters
+        const a = sub.nodes.find(n => n.id === anchors[i].id)!;
+        const b = sub.nodes.find(n => n.id === anchors[j].id)!;
+        const aPos = { ...a.position };
+        a.position = { ...b.position };
+        b.position = aPos;
+        syncModuleNodeInState(state, state.activeSubgraphId);
+      });
     },
   }))
 );

@@ -98,13 +98,13 @@ Wires are coloured by the type of value they carry: whole numbers (blue), decima
 
 ### Modules (named functions)
 
-Select one or more nodes and click **Wrap as Function**. Liberator extracts them into a named module node with auto-generated input/output ports, wiring cross-boundary edges automatically. Double-click a module node to navigate inside it; a breadcrumb trail appears at the top of the canvas. Inside, each parameter is a teal **Parameter** node: type in its box to rename the parameter. Clashing names are numbered automatically (`x`, `x2`, …).
+Select one or more nodes and click **Wrap as Function**. Liberator extracts them into a named module node with auto-generated input/output ports, wiring cross-boundary edges automatically. Double-click a module node to navigate inside it; a breadcrumb trail appears at the top of the canvas. Inside, each parameter is a teal **Parameter** node: type in its box to rename the parameter. Clashing names are numbered automatically (`x`, `x2`, …). Parameters are numbered top to bottom, which is the order the function takes them in: drag a Parameter node, or use the ↑/↓ buttons in Properties, to reorder them, and click **+ Parameter** in the breadcrumb to add one. A value wired into several places in the selection becomes a single parameter, so wrapping `x * x` gives `square x`.
 
 To use a function again, or to make it recursive, add a **Call Function** node: drag the function from **My Functions** at the top of the palette, or pick it from the Call node's dropdown. Inside a function, the **Apply** button in the breadcrumb updates its Call nodes after you change its parameters. Copying and pasting a function node also gives a Call to it.
 
 ### Auto-layout (Tidy Up)
 
-Clicking **Tidy Up** applies a longest-path DAG layering algorithm (`src/utils/layout.ts`). Each node is assigned to a column based on the length of the longest dependency chain leading to it; nodes at the same column are spaced evenly and vertically centred. The action is undoable (Ctrl+Z) and works inside module subgraphs.
+Clicking **Tidy Up** applies a longest-path DAG layering algorithm (`src/utils/layout.ts`). Each node is assigned to a column based on the length of the longest dependency chain leading to it; nodes at the same column are spaced evenly and vertically centred, keeping their existing top-to-bottom order (so a function's parameters stay in order). Output nodes all line up in the last column. The action is undoable (Ctrl+Z) and works inside module subgraphs.
 
 ### State management
 
