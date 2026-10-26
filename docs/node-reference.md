@@ -199,4 +199,6 @@ Liberator's nodes are meant to match Haskell closely, and **Export .hs** produce
 
 The helpers appear at the top of the exported file, so it runs unchanged.
 
+**Recursion has limits.** To stop a runaway program freezing the browser, Liberator gives up after 50,000 steps and shows **⊥** ("bottom", the symbol for a computation that never finishes). A recursive call that is the very *last* thing a function does, as in `lpf n d = … else lpf n (d + 1)`, can run thousands of times. One whose result still has work waiting on it, as in `n * fact (n - 1)`, uses more room for each call, so `fact 3000` hits the limit even though it would finish eventually. That difference, called tail recursion, is worth discussing with students.
+
 Liberator also checks types more loosely than Haskell. It doesn't yet know that `+` needs numbers, so some mistakes only show up when you click **Run**, not as a red wire.
