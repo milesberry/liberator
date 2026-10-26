@@ -26,6 +26,25 @@ export function signatureOf(md: ModuleNodeData): string {
   return [md.name, ...md.inputPorts.map(p => p.label)].join(' ');
 }
 
+// The Function node with this name, wherever it is defined
+export function findFunctionNode(
+  name: string,
+  rootNodes: LibNode[],
+  subgraphs: Record<string, { nodes: LibNode[] }>,
+): LibNode | undefined {
+  return [...rootNodes, ...Object.values(subgraphs).flatMap(sub => sub.nodes)]
+    .find(n => n.data.kind === 'module' && (n.data as ModuleNodeData).name === name);
+}
+
+// Point a Call node's data at the named Function, mirroring its ports. If no
+// Function has that name yet (a forward reference, e.g. to the Function being
+// built), the existing ports are kept so wires stay attached.
+export function bindCall(cd: CallNodeData, name: string, target: ModuleNodeData | undefined): void {
+  cd.targetName = name;
+  if (!name) { cd.ports = []; return; }
+  if (target) cd.ports = callDataFor(target).ports;
+}
+
 // Data for a Call node already pointing at `md`, with ports mirroring the
 // Function's (same port ids, as CallNode's own name lookup produces).
 export function callDataFor(md: ModuleNodeData): CallNodeData {

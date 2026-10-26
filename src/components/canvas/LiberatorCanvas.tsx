@@ -67,12 +67,13 @@ const EDGE_TYPES: EdgeTypes = {
 
 // ─── Breadcrumb navigation bar ─────────────────────────────────────────────
 function BreadcrumbNav() {
-  const { navStack, popSubgraph, syncModuleNode, addParameter, activeSubgraphId, nodes: rootNodes } = useGraphStore();
+  const { navStack, popSubgraph, syncModuleNode, addParameter, activeSubgraphId, nodes: rootNodes, subgraphs } = useGraphStore();
   const [applyFlash, setApplyFlash] = useState(false);
   if (navStack.length === 0) return null;
 
   function nameFor(subgraphId: string): string {
-    const mod = rootNodes.find(n =>
+    // Search every graph: a function opened from a Call may be defined inside another
+    const mod = [...rootNodes, ...Object.values(subgraphs).flatMap(sg => sg.nodes)].find(n =>
       n.data.kind === 'module' && (n.data as { subgraphId: string }).subgraphId === subgraphId
     );
     return mod ? (mod.data as { name: string }).name : subgraphId.slice(0, 6);

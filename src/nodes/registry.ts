@@ -596,7 +596,7 @@ const ioNodes: NodeDefinition[] = [
 const moduleNodes: NodeDefinition[] = [
   {
     kind: 'call', label: 'Call Function', category: 'modules',
-    description: 'Call a named Function by selecting it from the dropdown. Ports update to match the selected function\'s signature.',
+    description: 'Uses a named Function. Type its name, or choose it in Properties; the ports follow the Function\'s inputs and output. Quicker: drag the Function from My Functions.',
     makeData: () => ({ kind: 'call', targetName: '', ports: [] }),
   },
 ];

@@ -42,7 +42,7 @@ export function ModuleNode({ data, selected }: NodeProps<LibNode>) {
   const d = data as ModuleNodeData;
   const nodeId = useNodeId() ?? '';
   const pushSubgraph = useStore(s => s.pushSubgraph);
-  const updateNodeData = useGraphStore(s => s.updateNodeData);
+  const renameFunction = useGraphStore(s => s.renameFunction);
 
   return (
     <div
@@ -57,7 +57,7 @@ export function ModuleNode({ data, selected }: NodeProps<LibNode>) {
         <input
           className="bg-transparent outline-none text-white font-semibold w-full cursor-text"
           value={d.name}
-          onChange={e => updateNodeData(nodeId, nd => { (nd as ModuleNodeData).name = e.target.value; })}
+          onChange={e => renameFunction(nodeId, e.target.value)}
           onClick={e => e.stopPropagation()}
           onDoubleClick={e => e.stopPropagation()}
         />

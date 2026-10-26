@@ -180,7 +180,7 @@ In Haskell a `String` is a list of characters. Liberator keeps text as its own t
 |---|---|
 | **Function** | A named function you've made, by selecting nodes and clicking **Wrap as Function**. Double-click it to go inside, and use the breadcrumb at the top to come back out. |
 | **Parameter** (teal, inside a Function) | One of the Function's inputs. Type in its box to rename it. Duplicate names are numbered automatically (`x`, `x2`, …). Parameters are numbered top to bottom, and that's the order the Function takes them in: drag one up or down, or use the ↑/↓ buttons in Properties, to change it. Click **+ Parameter** at the top of the canvas to add another. |
-| **Call Function** | Uses one of your Functions by name. This is how a Function uses itself (recursion), or how you use a Function again somewhere else. Choose the Function from the dropdown, or drag it from **My Functions** at the top of the palette. Inside a Function, click **Apply** in the breadcrumb to update its Call nodes after you add or rename parameters. |
+| **Call Function** | Uses one of your Functions by name. This is how a Function uses itself (recursion), or how you use a Function again somewhere else. Drag the Function from **My Functions** at the top of the palette, or type its name into a Call Function node. Once it knows which Function to use, it looks just like that Function's own block (with a small call icon), and double-clicking it opens the Function's definition. To switch it to a different Function, use the **Function** box in Properties. Renaming a Function renames its Calls too. Inside a Function, click **Apply** in the breadcrumb to update its Call nodes after you add or rename parameters. |
 
 ---
 

@@ -108,8 +108,9 @@ const SUMMARIES: Record<string, string> = {
 // The summary for a node's data: parameters and function outputs are
 // recognised by their anchor marker, as everywhere else
 export function nodeSummary(data: LibNodeData): string | undefined {
-  const d = data as { kind: string; op?: string; valueType?: string; _modulePortId?: string };
+  const d = data as { kind: string; op?: string; valueType?: string; _modulePortId?: string; targetName?: string };
   if (d._modulePortId) return SUMMARIES[d.kind === 'value' ? 'param' : 'functionOutput'];
+  if (d.kind === 'call' && d.targetName) return `Uses your Function ${d.targetName}. Double-click to open its definition.`;
   return SUMMARIES[`${d.kind}:${d.op ?? d.valueType ?? ''}`] ?? SUMMARIES[d.kind];
 }
 
