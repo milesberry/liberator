@@ -133,6 +133,42 @@ export function analyseGraph(
 
   return { edges: checkedEdges, portTypes };
 
+  // Does a wire into this node carry a function where a value is wanted?
+  function carriesFunctionWhereValueWanted(nodeId: string): boolean {
+    return edges.some(e => {
+      if (e.target !== nodeId) return false;
+      const srcPortId = e.sourceHandle?.split('__')[1];
+      const tgtPortId = e.targetHandle?.split('__')[1];
+      if (!srcPortId || !tgtPortId) return false;
+      const from = applySubst(subst, effectiveOutputType(e.source, srcPortId));
+      const to   = applySubst(subst, nodeById.get(nodeId)?.data.ports.find(p => p.id === tgtPortId)?.type ?? TUnknown);
+      return from.tag === 'Fun' && to.tag !== 'Fun' && to.tag !== 'TypeVar' && to.tag !== 'Unknown';
+    });
+  }
+
+  // Follow wires on from a node: does the chain end up in an input that wants a
+  // function, like filter's test p or map's f? If so, name it ("filter's p").
+  function functionInputDownstream(nodeId: string): string | undefined {
+    const seen = new Set<string>();
+    let frontier = [nodeId];
+    for (let depth = 0; depth < 8 && frontier.length > 0; depth++) {
+      const next: string[] = [];
+      for (const id of frontier) {
+        if (seen.has(id)) continue;
+        seen.add(id);
+        for (const e of edges.filter(e => e.source === id)) {
+          const target = nodeById.get(e.target);
+          const portId = e.targetHandle?.split('__')[1];
+          const port = target?.data.ports.find(p => p.id === portId);
+          if (target && port?.type.tag === 'Fun') return `${nodeName(target)}'s ${port.label}`;
+          next.push(e.target);
+        }
+      }
+      frontier = next;
+    }
+    return undefined;
+  }
+
   // A student-friendly explanation of a type mismatch on one wire. The common
   // slip is a function where a value is wanted, or vice versa, so those cases
   // say which inputs to connect or leave empty.
@@ -144,23 +180,49 @@ export function analyseGraph(
     const where = tgtNode
       ? `The ${tgtPort?.label ?? ''} input of ${nodeName(tgtNode)}`
       : 'This input';
-    const srcInputs = srcNode?.data.ports.filter(p => p.direction === 'input') ?? [];
+    // Only these nodes become functions when an input is left empty (a Lambda's
+    // or an if's inputs aren't arguments)
+    const partial = ['primop', 'hof', 'listop', 'module', 'call'].includes(srcNode?.data.kind ?? '');
+    const srcInputs = partial ? srcNode!.data.ports.filter(p => p.direction === 'input') : [];
     const connected = connectedInputs.get(srcId) ?? new Set<string>();
     const empty = srcInputs.filter(p => !connected.has(p.id)).length;
     const hasEmpty = empty > 0;
     const srcName = srcNode ? nodeName(srcNode) : 'the source node';
 
     if (tgt.tag === 'Fun' && src.tag !== 'Fun') {
-      const hint = srcInputs.length > 0 && !hasEmpty
-        ? ` To pass ${srcName} itself as a function, leave one of its inputs empty.`
-        : '';
+      let hint = '';
+      if (srcNode && carriesFunctionWhereValueWanted(srcNode.id)) {
+        // The real mistake is further back; fixing that fixes this one
+        hint = ` This comes from the problem on a wire going into ${srcName}: sort that one out first.`;
+      } else if (srcInputs.length > 0 && !hasEmpty) {
+        hint = ` To pass ${srcName} itself as a function, leave one of its inputs empty.`;
+      } else if (srcInputs.length === 0 && srcNode?.data.kind === 'value') {
+        hint = ' A typed-in value is not a function. Wire in a function instead: an operator with one input' +
+          ' left empty (such as + with only y connected), a Lambda, or one of your Functions from My Functions.';
+      }
       return {
         full:  `${where} needs a function (${showTypeSimple(tgt)}), but this wire carries a value of type ${showTypeSimple(src)}.${hint}`,
         short: `Needs a function (${showTypeSimple(tgt)}), got ${showTypeSimple(src)}`,
       };
     }
     if (src.tag === 'Fun' && tgt.tag !== 'Fun') {
-      const hint = hasEmpty ? ` Connect the empty ${empty === 1 ? 'input' : 'inputs'} on ${srcName} to get a value.` : '';
+      let hint = '';
+      const inputs = empty === 1 ? 'input' : 'inputs';
+      // Values wired in must be selected too, or they'd become extra parameters
+      const wrap = `select ${srcName} and ${tgtNode ? nodeName(tgtNode) : 'this node'}, with the values wired into them,` +
+        ` and click Wrap as Function: the empty ${inputs} on ${srcName} will become the new function's parameter${empty === 1 ? '' : 's'}`;
+      // Heading for an input that wants a function (filter's test, map's f)?
+      // Then the student is probably building a function, which wrapping makes.
+      const wants = tgtNode ? functionInputDownstream(tgtNode.id) : undefined;
+      if (hasEmpty && wants) {
+        hint = ` It looks as if you are building a function to give to ${wants}. To make it, ${wrap}.` +
+          ` (Or, if you meant a single value here, connect the empty ${inputs} on ${srcName}.)`;
+      } else if (hasEmpty) {
+        hint = ` Connect the empty ${inputs} on ${srcName} to get a value. Or, if you meant to build a new function` +
+          ` from these nodes, ${wrap}.`;
+      } else {
+        hint = ` To use a function's result here, apply it to a value first, for example with Apply ($).`;
+      }
       return {
         full:  `${where} needs a value of type ${showTypeSimple(tgt)}, but this wire carries a function (${showTypeSimple(src)}).${hint}`,
         short: `Needs ${showTypeSimple(tgt)}, got a function (${showTypeSimple(src)})`,
