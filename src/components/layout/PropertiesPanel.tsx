@@ -8,9 +8,10 @@ import { useTypeStore }  from '../../store/typeStore';
 import { findDefinition } from '../../nodes/registry';
 import { useEvaluationStore } from '../../store/evaluationStore';
 import { wireValueText } from '../../utils/wireValues';
+import { listFunctions, findFunctionNode, bindCall } from '../../utils/functions';
 import { nodeSummary } from '../../nodes/summaries';
 import { wireColor, showType, TUnknown, type HaskellType } from '../../types/haskell';
-import type { LibNodeData, Port } from '../../types/nodes';
+import type { LibNodeData, Port, ModuleNodeData, CallNodeData } from '../../types/nodes';
 
 // ─── Port label row ────────────────────────────────────────────────────────
 
@@ -23,15 +24,17 @@ interface PortRowProps {
 // Registry entry for a node: operators are keyed by op, values by their type.
 // A function's Parameter and output nodes aren't palette entries, so have none.
 function definitionFor(data: LibNodeData) {
-  const d = data as { op?: string; valueType?: string; _modulePortId?: string };
+  const d = data as { op?: string; valueType?: string; _modulePortId?: string; targetName?: string };
   if (d._modulePortId) return undefined;
+  if (data.kind === 'call' && d.targetName) return undefined;   // headed by the function's name
   return findDefinition(data.kind, d.op ?? d.valueType);
 }
 
 // Heading and subheading for a node that has no registry entry
 function headingFor(data: LibNodeData): [string, string] {
-  const d = data as { name?: string; _modulePortId?: string };
+  const d = data as { name?: string; _modulePortId?: string; targetName?: string };
   if (data.kind === 'module') return [d.name ?? 'Function', 'Function'];
+  if (data.kind === 'call') return [d.targetName || 'Call Function', 'uses a Function'];
   if (d._modulePortId) return data.kind === 'value' ? ['Parameter', 'Function input'] : ['Output', 'Function result'];
   return [data.kind, data.kind];
 }
@@ -184,6 +187,9 @@ export function PropertiesPanel() {
   const removeNode     = useGraphStore(s => s.removeNode);
   const portTypes      = useTypeStore(s => s.portTypes);
   const moveParameter  = useGraphStore(s => s.moveParameter);
+  const renameFunction = useGraphStore(s => s.renameFunction);
+  const rootNodes      = useGraphStore(s => s.nodes);
+  const subgraphs      = useGraphStore(s => s.subgraphs);
 
   const node = selectedNodeId ? nodes.find(n => n.id === selectedNodeId) : null;
 
@@ -213,15 +219,35 @@ export function PropertiesPanel() {
             <label className="block text-xs mb-1" style={{ color: 'var(--text-muted)' }}>Function name</label>
             <input
               value={data.name}
-              onChange={e => updateNodeData(selectedNodeId!, d => {
-                (d as typeof data).name = e.target.value;
-              })}
+              onChange={e => renameFunction(selectedNodeId!, e.target.value)}
               onClick={e => e.stopPropagation()}
               className="w-full text-xs font-mono rounded px-2 py-1 outline-none focus:border-blue-500"
               style={{ background: 'var(--bg-node-input)', color: 'var(--text-primary)', border: '1px solid var(--border-input)' }}
             />
           </div>
         );
+      case 'call': {
+        // Which Function this node uses; its ports follow the choice
+        const names = listFunctions(rootNodes, subgraphs).map(md => md.name);
+        const choose = (name: string) => {
+          const md = findFunctionNode(name, rootNodes, subgraphs)?.data as ModuleNodeData | undefined;
+          updateNodeData(selectedNodeId!, d => bindCall(d as CallNodeData, name, md));
+        };
+        return (
+          <div className="mb-3">
+            <label className="block text-xs mb-1" style={{ color: 'var(--text-muted)' }}>Function</label>
+            <select
+              value={names.includes(data.targetName) ? data.targetName : ''}
+              onChange={e => choose(e.target.value)}
+              className="w-full text-xs font-mono rounded px-2 py-1 outline-none focus:border-blue-500"
+              style={{ background: 'var(--bg-node-input)', color: 'var(--text-primary)', border: '1px solid var(--border-input)' }}
+            >
+              <option value="">(choose a function)</option>
+              {names.map(name => <option key={name} value={name}>{name}</option>)}
+            </select>
+          </div>
+        );
+      }
       case 'lambda':
         return (
           <div className="mb-3">

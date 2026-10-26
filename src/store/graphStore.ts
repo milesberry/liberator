@@ -236,6 +236,11 @@ interface GraphState {
   setSubgraph: (subgraphId: string, nodes: LibNode[], edges: LibEdge[]) => void;
   getSubgraph: (subgraphId: string) => SubgraphState | undefined;
   syncModuleNode: (subgraphId: string) => void;
+  // Show a function's definition, from a Function or Call node. Steps back out
+  // if it's already open further up the breadcrumb, rather than nesting it again.
+  openFunction: (subgraphId: string) => void;
+  // Rename a Function, and every Call node that uses it
+  renameFunction: (nodeId: string, name: string) => void;
   // Inside a function: add a new Parameter node, or move one up or down the order
   addParameter: () => void;
   moveParameter: (nodeId: string, direction: -1 | 1) => void;
@@ -789,6 +794,37 @@ export const useGraphStore = create<GraphState>()(
 
     syncModuleNode: (subgraphId) => {
       set((state) => { syncModuleNodeInState(state, subgraphId); });
+    },
+
+    openFunction: (subgraphId) => {
+      const { navStack, activeSubgraphId, pushSubgraph, popSubgraph } = get();
+      if (activeSubgraphId === subgraphId) return;
+      if (navStack.includes(subgraphId)) {
+        while (get().activeSubgraphId !== subgraphId) popSubgraph();
+      } else {
+        pushSubgraph(subgraphId);
+      }
+    },
+
+    renameFunction: (nodeId, name) => {
+      set((state) => {
+        pushHistory(state);
+        const graphs = [state.nodes, ...Object.values(state.subgraphs).map(sg => sg.nodes)];
+        const all = graphs.flat();
+        const fn = all.find(n => n.id === nodeId && n.data.kind === 'module');
+        if (!fn) return;
+        const md = fn.data as ModuleNodeData;
+        const oldName = md.name;
+        md.name = name;
+        // Only follow the rename if the old name was this Function's alone
+        const shared = all.some(n => n !== fn && n.data.kind === 'module' && (n.data as ModuleNodeData).name === oldName);
+        if (!oldName || shared) return;
+        for (const n of all) {
+          if (n.data.kind === 'call' && (n.data as CallNodeData).targetName === oldName) {
+            (n.data as CallNodeData).targetName = name;
+          }
+        }
+      });
     },
 
     addParameter: () => {

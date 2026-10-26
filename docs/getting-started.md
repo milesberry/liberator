@@ -323,7 +323,9 @@ sum' xs = head xs + sum' (tail xs)
 
 Recursive functions are built by **wrapping** nodes into a named module. As soon as the
 module chip appears, any Call node already bearing its name receives its ports automatically —
-so you only need **one visit inside** to tidy up and finish wiring.
+so you only need **one visit inside** to tidy up and finish wiring. The Call node then takes on
+the function's own amber look, with a small call icon to show it is a *use* of the function
+rather than its definition; double-click it to open the definition.
 
 ### Build, wire, and wrap
 
