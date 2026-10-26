@@ -6,6 +6,8 @@ import { useUIStore }   from '../../store/uiStore';
 import { useGraphStore, parameterAnchors } from '../../store/graphStore';
 import { useTypeStore }  from '../../store/typeStore';
 import { findDefinition } from '../../nodes/registry';
+import { useEvaluationStore } from '../../store/evaluationStore';
+import { wireValueText } from '../../utils/wireValues';
 import { nodeSummary } from '../../nodes/summaries';
 import { wireColor, showType, TUnknown, type HaskellType } from '../../types/haskell';
 import type { LibNodeData, Port } from '../../types/nodes';
@@ -69,6 +71,7 @@ function PortRow({ port, inferred, onRename }: PortRowProps) {
 
 function EdgeProperties({ edgeId }: { edgeId: string }) {
   const info = useTypeStore(s => s.checkedEdges.get(edgeId));
+  const wireValues = useEvaluationStore(s => s.wireValues);
 
   const nodes = useGraphStore(s =>
     s.activeSubgraphId
@@ -107,6 +110,7 @@ function EdgeProperties({ edgeId }: { edgeId: string }) {
 
   const src = parseHandle(edge.source, edge.sourceHandle);
   const tgt = parseHandle(edge.target, edge.targetHandle);
+  const value = wireValues.get(edge.sourceHandle ?? `${edge.source}__result`);
 
   return (
     <div className="flex-1 overflow-y-auto p-3 flex flex-col gap-3">
@@ -131,6 +135,15 @@ function EdgeProperties({ edgeId }: { edgeId: string }) {
         {compatible === true && (
           <p className="text-xs mt-1.5" style={{ color: 'var(--text-faint)' }}>Compatible ✓</p>
         )}
+      </div>
+
+      {/* The value on the wire at the last Run, in full */}
+      <div>
+        <p className="text-xs uppercase tracking-wider mb-1" style={{ color: 'var(--text-muted)' }}>Value</p>
+        <p className="text-xs font-mono break-words"
+           style={{ color: value?.kind === 'value' ? 'var(--text-primary)' : 'var(--text-faint)' }}>
+          {wireValueText(value, srcType)}
+        </p>
       </div>
 
       {/* From */}
