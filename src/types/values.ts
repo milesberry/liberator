@@ -8,7 +8,12 @@ export type HaskellValue =
   | { tag: 'VString'; value: string }
   | { tag: 'VList';   elements: HaskellValue[] }
   | { tag: 'VTuple';  elements: HaskellValue[] }
-  | { tag: 'VFun';    fn: (arg: HaskellValue) => HaskellValue }
+  | { tag: 'VFun';    fn: (arg: HaskellValue) => HaskellValue;
+      // For functions made by a lambda: what fn would evaluate, so the evaluator
+      // can run a tail call in a loop instead of nesting another JS call
+      tail?: (arg: HaskellValue) => { expr: unknown; env: Map<string, HaskellValue> };
+      // For a recursive function's name: the function it currently stands for
+      deref?: () => HaskellValue }
   | { tag: 'VError';  message: string }
   | { tag: 'VBottom' };   // non-terminating / step budget exceeded
 

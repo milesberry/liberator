@@ -6,7 +6,7 @@ import { useCallback, useEffect } from 'react';
 import { useGraphStore }      from '../store/graphStore';
 import { useEvaluationStore, type WireValue } from '../store/evaluationStore';
 import { buildOutputExprs, wireSourceExprs, VARIES } from '../engine/toExprTree';
-import { evaluate }           from '../engine/evaluator';
+import { evaluateSafely }     from '../engine/evaluator';
 import { showValue, type HaskellValue } from '../types/values';
 import type { LibNode } from '../types/nodes';
 import type { LibEdge } from '../types/edges';
@@ -42,10 +42,10 @@ function computeWireValues(
       if (n.data.kind !== 'let') continue;
       const bound = g.edges.find(e => e.target === n.id && e.targetHandle === `${n.id}__value`);
       const expr = bound && exprs.get(bound.sourceHandle ?? `${bound.source}__result`);
-      if (expr) env.set((n.data as { varName: string }).varName, evaluate(expr, env));
+      if (expr) env.set((n.data as { varName: string }).varName, evaluateSafely(expr, env));
     }
     for (const [handle, expr] of exprs) {
-      values.set(handle, describe(evaluate(expr, env)));
+      values.set(handle, describe(evaluateSafely(expr, env)));
     }
   }
   return values;
@@ -90,7 +90,7 @@ export function useEvaluation() {
         const { subgraphs } = useGraphStore.getState();
         const targets = buildOutputExprs(nodes, edges, subgraphs);
         const results = targets.map(({ nodeId, label, expr }) => {
-          const val = evaluate(expr);
+          const val = evaluateSafely(expr);
           const isError = val.tag === 'VError';
           const value = val.tag === 'VBottom'
             ? '⊥ (step limit exceeded — possible infinite recursion)'
