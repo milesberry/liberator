@@ -24,7 +24,7 @@ New to Liberator? Start with the [Getting Started guide](getting-started.md).
   | red | doesn't fit: hover over the label or select the wire to see why |
 
 - **Leave an input empty to get a function.** For example, Add (+) with only `y = 1` connected is the function `\x -> x + 1`, "add one to something". You can then wire it into `map`, `filter` or a fold. This is called *partial application*, and it works for every node with inputs, including your own Functions.
-- **Nothing runs until you click Run.** Each **Output** node then shows the value wired into it.
+- **Nothing runs until you click Run.** Each **Output** node then shows the value wired into it, and you can **hover over any wire to see the value it carries**, or click the wire to keep the value showing. Inside a Function, wires that depend on its inputs say *varies*.
 
 ---
 

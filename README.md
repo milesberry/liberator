@@ -92,6 +92,8 @@ Leave an input empty to get a function (partial application): `+` with only `y =
 
 The canvas is a directed acyclic graph (DAG) where nodes are expressions and edges are arguments. When you click **Run**, each `Output` node traces back through its inputs, builds an expression tree (`src/engine/toExprTree.ts`), then reduces it with a small call-by-value interpreter (`src/engine/evaluator.ts`). Built-in Haskell functions are implemented in `src/engine/builtins.ts`. **Export .hs** turns the same expression trees into a Haskell program that runs in GHCi (`src/engine/toHaskell.ts`).
 
+Run also works out the value on every wire (`wireSourceExprs` in `toExprTree.ts`, called from `src/hooks/useEvaluation.ts`), so hovering over a wire shows the value flowing along it, like the intermediate numbers in a function machine. Inside a function, parameters are replaced by a marker, so wires that depend on them show *varies* while constant parts still show their values. The values are cleared as soon as the wiring or any node's settings change, so they are never stale.
+
 ### Type system
 
 Wires are coloured by the type of value they carry: whole numbers (blue), decimals (light blue), booleans (green), strings (yellow), lists (purple), tuples (cyan) and functions (orange, and thicker). A type checker (`src/engine/typeChecker.ts`) infers types through the graph by unification, including the function types made by leaving inputs empty. A wire that doesn't fit turns red, with a short explanation on the wire and a fuller one, with a hint, when you hover or select it. There are no type classes yet, so `+` accepts any type until the graph is run.

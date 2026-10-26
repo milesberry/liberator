@@ -521,3 +521,36 @@ export function buildOutputExprs(
       expr: buildExpr(n.id, 'value', { ...ctx, visited: new Set() }),
     }));
 }
+
+// ─── Wire values ──────────────────────────────────────────────────────────
+// After Run, each wire can show the value flowing along it, as in a function
+// machine. Inside a function there is no single value for anything that
+// depends on a parameter, so parameters are replaced by a marker error; any
+// wire whose value comes out as that marker "varies". Wires fed only by
+// constants inside a function still get a real value.
+
+export const VARIES = '\u0000varies';
+
+// One expression per wire source (keyed by its handle, nodeId__portId).
+// lookupNodes lets a function body find Functions defined outside it.
+export function wireSourceExprs(
+  nodes: LibNode[],
+  edges: LibEdge[],
+  subgraphs: Record<string, SubgraphState>,
+  lookupNodes: LibNode[] = [],
+): Map<string, ExprTree> {
+  const overrides = new Map<string, ExprTree>();
+  for (const n of nodes) {
+    if (n.data.kind === 'value' && (n.data as { _modulePortId?: string })._modulePortId) {
+      overrides.set(n.id, { tag: 'Err', message: VARIES });
+    }
+  }
+  const ctx = makeCtx([...nodes, ...lookupNodes.filter(n => !nodes.includes(n))], edges, subgraphs, new Set(), overrides);
+  const exprs = new Map<string, ExprTree>();
+  for (const e of edges) {
+    const handle = e.sourceHandle ?? `${e.source}__result`;
+    if (exprs.has(handle)) continue;
+    exprs.set(handle, buildExpr(e.source, handle.split('__')[1] ?? 'result', { ...ctx, visited: new Set() }));
+  }
+  return exprs;
+}

@@ -48,6 +48,12 @@ The edge carries a value from one node to the next.
 Click **Run** in the toolbar to evaluate all Output nodes on the canvas.
 Results appear in the Output panel at the bottom. Click **Reset** to clear the results.
 
+After a Run, **hover over any wire to see the value travelling along it**, like the numbers
+between the stages of a function machine. Click a wire to keep its value on screen, and to
+see it in full in the Properties panel. Inside a Function, a wire that depends on the
+Function's inputs says *varies*, because it has a different value each time the Function is
+used. Changing the program clears the values until you Run again.
+
 ---
 
 ## 1. Your first calculation — `halve 12`
