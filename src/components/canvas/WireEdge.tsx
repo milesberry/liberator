@@ -39,7 +39,9 @@ export function WireEdge({
 
   const valueText = wireValueText(value, sourceType);
   const shortText = valueText.length > MAX_LABEL ? `${valueText.slice(0, MAX_LABEL - 1)}…` : valueText;
-  const showValue = hovered || selected;
+  // Selection keeps a value on screen; the "Click Run" hint shows only on hover,
+  // so marquee-selecting a group before running doesn't label every wire
+  const showValue = hovered || (selected && value !== undefined);
   const hasError  = compatible === false && Boolean(info?.errorMessage);
 
   return (
