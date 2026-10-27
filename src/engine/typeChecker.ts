@@ -210,7 +210,7 @@ export function analyseGraph(
       const inputs = empty === 1 ? 'input' : 'inputs';
       // Values wired in must be selected too, or they'd become extra parameters
       const wrap = `select ${srcName} and ${tgtNode ? nodeName(tgtNode) : 'this node'}, with the values wired into them,` +
-        ` and click Wrap as Function: the empty ${inputs} on ${srcName} will become the new function's parameter${empty === 1 ? '' : 's'}`;
+        ` and click Make a Function: the empty ${inputs} on ${srcName} will become the new function's parameter${empty === 1 ? '' : 's'}`;
       // Heading for an input that wants a function (filter's test, map's f)?
       // Then the student is probably building a function, which wrapping makes.
       const wants = tgtNode ? functionInputDownstream(tgtNode.id) : undefined;

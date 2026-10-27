@@ -30,7 +30,7 @@ Nodes are organised into categories in the left-hand palette. Hover over any nod
 | **Utilities** | `sum` `product` `maximum` `minimum` `range [1..n]` `zip`, Comment |
 | **Tuples** | `pair` `fst` `snd` |
 | **Strings** | `show` `strConcat` `concat` `words` `unwords` `lines` `unlines` `strLength` `strReverse` `ord` `chr` `strToChars` `charsToStr` |
-| **Functions** | Call Function. Make a Function by selecting nodes and clicking **Wrap as Function** |
+| **Functions** | Call Function. Make a Function by selecting nodes and clicking **Make a Function** |
 
 Leave an input empty to get a function (partial application): `+` with only `y = 1` connected is `\x -> x + 1`, ready to wire into `map`.
 
@@ -100,7 +100,7 @@ Wires are coloured by the type of value they carry: whole numbers (blue), decima
 
 ### Modules (named functions)
 
-Select one or more nodes and click **Wrap as Function**. Liberator extracts them into a named module node with auto-generated input/output ports, wiring cross-boundary edges automatically. Double-click a module node to navigate inside it; a breadcrumb trail appears at the top of the canvas. Inside, each parameter is a teal **Parameter** node: type in its box to rename the parameter. Clashing names are numbered automatically (`x`, `x2`, …). Parameters are numbered top to bottom, which is the order the function takes them in: drag a Parameter node, or use the ↑/↓ buttons in Properties, to reorder them, and click **+ Parameter** in the breadcrumb to add one. A value wired into several places in the selection becomes a single parameter, so wrapping `x * x` gives `square x`.
+Select one or more nodes and click **Make a Function** (internally, "wrapping" them). Liberator extracts them into a named module node with auto-generated input/output ports, wiring cross-boundary edges automatically. Double-click a module node to navigate inside it; a breadcrumb trail appears at the top of the canvas. Inside, each parameter is a teal **Parameter** node: type in its box to rename the parameter. Clashing names are numbered automatically (`x`, `x2`, …). Parameters are numbered top to bottom, which is the order the function takes them in: drag a Parameter node, or use the ↑/↓ buttons in Properties, to reorder them, and click **+ Parameter** in the breadcrumb to add one. A value wired into several places in the selection becomes a single parameter, so wrapping `x * x` gives `square x`.
 
 To use a function again, or to make it recursive, add a **Call Function** node: drag the function from **My Functions** at the top of the palette, or pick it from the Call node's dropdown. Inside a function, the **Apply** button in the breadcrumb updates its Call nodes after you change its parameters. Copying and pasting a function node also gives a Call to it. A Call looks like the function's own amber block (marked with a call icon), and double-clicking it opens the function's definition; renaming a function renames its Calls.
 
