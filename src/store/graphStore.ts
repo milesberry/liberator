@@ -17,7 +17,7 @@ import { createNode } from '../nodes/registry';
 import type { NodeDefinition } from '../nodes/registry';
 import type { Clipboard } from './uiStore';
 import { newId } from '../utils/idGen';
-import { callDataFor } from '../utils/functions';
+import { callDataFor, listFunctions } from '../utils/functions';
 import { TUnknown, TVar, type HaskellType } from '../types/haskell';
 
 export interface SubgraphState {
@@ -252,6 +252,13 @@ function pushHistory(state: GraphState) {
   state.future = []; // any new action clears redo
 }
 
+// After undo or redo, step out of any open function that no longer exists
+// (undoing New Function, say, while inside it)
+function leaveMissingSubgraphs(state: GraphState) {
+  state.navStack = state.navStack.filter(id => state.subgraphs[id]);
+  state.activeSubgraphId = state.navStack[state.navStack.length - 1] ?? '';
+}
+
 // ─── State interface ───────────────────────────────────────────────────────
 
 interface GraphState {
@@ -298,6 +305,9 @@ interface GraphState {
   openFunction: (subgraphId: string) => void;
   // Rename a Function, and every Call node that uses it
   renameFunction: (nodeId: string, name: string) => void;
+  // A new, empty Function on the main canvas, with one Parameter and its
+  // result, opened ready to build. Returns the name it was given.
+  newFunction: (name: string) => string;
   // Inside a function: add a new Parameter node, or move one up or down the order
   addParameter: () => void;
   // Replace a Call node with a copy of its Function's body, the arguments wired
@@ -576,6 +586,7 @@ export const useGraphStore = create<GraphState>()(
         state.nodes     = snapshot.nodes     as LibNode[];
         state.edges     = snapshot.edges     as LibEdge[];
         state.subgraphs = snapshot.subgraphs as Record<string, SubgraphState>;
+        leaveMissingSubgraphs(state);
       });
     },
 
@@ -591,6 +602,7 @@ export const useGraphStore = create<GraphState>()(
         state.nodes     = snapshot.nodes     as LibNode[];
         state.edges     = snapshot.edges     as LibEdge[];
         state.subgraphs = snapshot.subgraphs as Record<string, SubgraphState>;
+        leaveMissingSubgraphs(state);
       });
     },
 
@@ -961,6 +973,58 @@ export const useGraphStore = create<GraphState>()(
           }
         }
       });
+    },
+
+    newFunction: (name) => {
+      // Back to the main canvas first, so the breadcrumb reads main > name
+      while (get().activeSubgraphId) get().popSubgraph();
+      const taken = new Set(listFunctions(get().nodes, get().subgraphs).map(md => md.name));
+      const base = name.trim() || 'myFunction';
+      let unique = base;
+      for (let i = 2; taken.has(unique); i++) unique = `${base}${i}`;
+      const subgraphId = newId();
+      set((state) => {
+        pushHistory(state);
+        const paramId = newId(), outId = newId();
+        const inPort  = `in_${newId()}`, outPort = `out_${newId()}`;
+        const paramType = TVar(`p_${paramId}`);
+        state.subgraphs[subgraphId] = {
+          nodes: [
+            {
+              id: paramId, type: 'value', position: { x: 0, y: 0 },
+              data: {
+                kind: 'value', valueType: 'Int', literal: '__module_input__',
+                ports: [{ id: 'result', label: 'x', direction: 'output', type: paramType, connected: false }],
+                _modulePortId: inPort,
+              } as any,
+            } as LibNode,
+            {
+              id: outId, type: 'output', position: { x: 600, y: 0 },
+              data: {
+                kind: 'output', label: 'result', lastValue: null,
+                ports: [{ id: 'value', label: 'value', direction: 'input', type: TUnknown, connected: false }],
+                _modulePortId: outPort,
+              } as any,
+            } as LibNode,
+          ],
+          edges: [],
+        };
+        // Below everything already on the main canvas
+        const below = state.nodes.length ? Math.max(...state.nodes.map(n => n.position.y)) + 160 : 0;
+        const left  = state.nodes.length ? Math.min(...state.nodes.map(n => n.position.x)) : 0;
+        const inputPorts:  Port[] = [{ id: inPort,  label: 'x',      direction: 'input',  type: paramType, connected: false }];
+        const outputPorts: Port[] = [{ id: outPort, label: 'result', direction: 'output', type: TUnknown, connected: false }];
+        state.nodes.push({
+          id: `mod_${subgraphId}`, type: 'module',
+          position: { x: left, y: below },
+          data: {
+            kind: 'module', name: unique, description: '', subgraphId,
+            inputPorts, outputPorts, ports: [...inputPorts, ...outputPorts],
+          } as ModuleNodeData,
+        } as LibNode);
+      });
+      get().pushSubgraph(subgraphId);
+      return unique;
     },
 
     addParameter: () => {

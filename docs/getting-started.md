@@ -335,6 +335,12 @@ so you only need **one visit inside** to tidy up and finish wiring. The Call nod
 the function's own amber look, with a small call icon to show it is a *use* of the function
 rather than its definition; double-click it to open the definition.
 
+> **Or start from an empty function.** Click **New Function** at the top of **My Functions** in the
+> palette and give it a name. Liberator opens the new function with one Parameter, `x`, and its
+> result, ready for you to build what it does. Because the function exists from the start, you can
+> drag it from My Functions into its own definition straight away to make the recursive call. Click
+> **+ Parameter** for more inputs, and **back** (or the breadcrumb) when you're done.
+
 ### Build, wire, and make the function
 
 **Step 1.** Drag seven nodes:

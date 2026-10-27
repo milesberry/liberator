@@ -292,6 +292,13 @@ function CanvasInner({ onRegisterTidyUp }: CanvasInnerProps) {
   const activeNodes: LibNode[] = subgraph ? subgraph.nodes : rootNodes;
   const activeEdges: LibEdge[] = subgraph ? subgraph.edges : rootEdges;
 
+  // Opening a function frames its definition, which may be anywhere
+  useEffect(() => {
+    if (!activeSubgraphId) return;
+    const t = setTimeout(() => fitView({ duration: 300, padding: 0.2, maxZoom: 1 }), 50);
+    return () => clearTimeout(t);
+  }, [activeSubgraphId, fitView]);
+
   // ── Tidy Up: DAG auto-layout + fitView ───────────────────────────────────
   const handleTidyUp = useCallback(() => {
     if (activeNodes.length === 0) return;

@@ -2,7 +2,7 @@
 // Left panel. Lists all node types grouped by category. Drag onto canvas.
 
 import { useState } from 'react';
-import { Search } from 'lucide-react';
+import { Search, Plus } from 'lucide-react';
 import { NODE_REGISTRY, CATEGORY_LABELS, CATEGORY_ORDER, groupByCategory, type NodeDefinition } from '../../nodes/registry';
 import { useGraphStore } from '../../store/graphStore';
 import { listFunctions, signatureOf } from '../../utils/functions';
@@ -60,6 +60,48 @@ function FunctionItem({ fn }: { fn: ModuleNodeData }) {
   );
 }
 
+// Starts an empty Function and opens it: the way in for a recursive function,
+// which can't be made by wrapping nodes that already exist
+function NewFunctionButton() {
+  const [name, setName] = useState('');
+  const [showInput, setShowInput] = useState(false);
+  const newFunction = useGraphStore(s => s.newFunction);
+
+  const make = () => {
+    newFunction(name);
+    setName('');
+    setShowInput(false);
+  };
+
+  return showInput ? (
+    <div className="flex items-center gap-1 mx-1 my-1 px-2 py-1 rounded border border-amber-600">
+      <input
+        autoFocus
+        placeholder="Name it…"
+        value={name}
+        onChange={e => setName(e.target.value)}
+        onKeyDown={e => { if (e.key === 'Enter') make(); if (e.key === 'Escape') setShowInput(false); }}
+        className="bg-transparent text-xs font-mono outline-none min-w-0 flex-1"
+        style={{ color: 'var(--text-primary)' }}
+      />
+      <button onClick={make}
+        className="text-amber-500 hover:text-amber-300 text-xs border border-amber-600 rounded px-1.5">
+        Make
+      </button>
+      <button onClick={() => setShowInput(false)} className="text-xs" style={{ color: 'var(--text-muted)' }}>✕</button>
+    </div>
+  ) : (
+    <button
+      onClick={() => setShowInput(true)}
+      title="Start a new, empty Function and open it. Build what it does from its Parameter x; to make it recursive, drag it from My Functions into its own definition."
+      className="flex items-center gap-1 mx-1 my-1 px-2 py-1 rounded text-xs font-medium text-white bg-amber-700 hover:bg-amber-600 border border-amber-500"
+    >
+      <Plus size={12} />
+      New Function
+    </button>
+  );
+}
+
 export function Palette() {
   const [query, setQuery] = useState('');
 
@@ -114,17 +156,16 @@ export function Palette() {
           </div>
         ) : (
           <>
-          {functions.length > 0 && (
-            <details open className="mb-1">
-              <summary className="text-xs font-semibold uppercase tracking-wider px-2 py-1 cursor-pointer select-none"
-                       style={{ color: 'var(--text-muted)' }}>
-                My Functions
-              </summary>
-              <div className="pl-1">
-                {functions.map(fn => <FunctionItem key={`fn-${fn.name}`} fn={fn} />)}
-              </div>
-            </details>
-          )}
+          <details open className="mb-1">
+            <summary className="text-xs font-semibold uppercase tracking-wider px-2 py-1 cursor-pointer select-none"
+                     style={{ color: 'var(--text-muted)' }}>
+              My Functions
+            </summary>
+            <div className="pl-1">
+              <NewFunctionButton />
+              {functions.map(fn => <FunctionItem key={`fn-${fn.name}`} fn={fn} />)}
+            </div>
+          </details>
           {CATEGORY_ORDER.filter(cat => grouped.has(cat)).map(cat => {
             const defs = grouped.get(cat)!; return (
             <details key={cat} open className="mb-1">
