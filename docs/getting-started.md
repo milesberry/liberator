@@ -555,7 +555,8 @@ The red warning on the `*` wire disappears at this point: until `*` **y** is con
 > or delete the value you want to replace (say, a typed-in `2`) and click **Apply**: any
 > input left empty inside the function becomes a new parameter, just as it does when you
 > make a function. (An operator left half-filled on purpose to go into `map` or `filter`,
-> such as `> 3`, is left alone.)
+> such as `> 3`, is left alone. So is an input you emptied by deleting a Parameter, or its
+> wire: Apply won't bring that parameter back.)
 
 > **My Functions.** Once `power` exists, it is listed as `power b n` under **My Functions**
 > at the top of the palette. Drag it onto the canvas, or inside another function, to call
