@@ -79,6 +79,35 @@ function feedsFunctionInput(nodeId: string, nodes: LibNode[], edges: LibEdge[]):
   });
 }
 
+// Inside a function, an input that loses its wire from a Parameter (the
+// Parameter was deleted, or just its wire) was emptied on purpose: Apply mustn't
+// turn it straight back into a parameter. The input's port id is noted on its
+// node, in _leftEmpty, which Apply checks. Wiring something new into the input
+// clears the note, so deleting that later leaves a gap Apply will fill again.
+// Returns the nodes, with copies where a note changed.
+function noteParameterWires(nodes: LibNode[], removed: LibEdge[], added: LibEdge[], before: LibNode[]): LibNode[] {
+  const isParam = (id: string) => !!before.find(n => n.id === id && n.data.kind === 'value' &&
+    (n.data as { _modulePortId?: string })._modulePortId);
+  const portOf = (e: LibEdge) => (e.targetHandle ?? `${e.target}__value`).split('__')[1];
+  const notes = new Map<string, Set<string>>();
+  const notesFor = (n: LibNode) => {
+    if (!notes.has(n.id)) notes.set(n.id, new Set((n.data as { _leftEmpty?: string[] })._leftEmpty ?? []));
+    return notes.get(n.id)!;
+  };
+  for (const e of removed) {
+    const target = nodes.find(n => n.id === e.target);
+    if (target && isParam(e.source)) notesFor(target).add(portOf(e));
+  }
+  for (const e of added) {
+    const target = nodes.find(n => n.id === e.target);
+    if (target) notesFor(target).delete(portOf(e));
+  }
+  if (notes.size === 0) return nodes;
+  return nodes.map(n => notes.has(n.id)
+    ? { ...n, data: { ...n.data, _leftEmpty: [...notes.get(n.id)!] } } as LibNode
+    : n);
+}
+
 function syncModuleNodeInState(state: GraphState, subgraphId: string): void {
   const sub = state.subgraphs[subgraphId];
   if (!sub) return;
@@ -363,8 +392,11 @@ export const useGraphStore = create<GraphState>()(
         if (state.activeSubgraphId) {
           const sub = state.subgraphs[state.activeSubgraphId];
           if (sub) {
+            const before = sub.nodes;
+            const removed = sub.edges.filter(e => e.source === id || e.target === id);
             sub.nodes = sub.nodes.filter(n => n.id !== id);
             sub.edges = sub.edges.filter(e => e.source !== id && e.target !== id);
+            sub.nodes = noteParameterWires(sub.nodes, removed, [], before);
             return;
           }
         }
@@ -380,8 +412,11 @@ export const useGraphStore = create<GraphState>()(
         if (state.activeSubgraphId) {
           const sub = state.subgraphs[state.activeSubgraphId];
           if (sub) {
+            const before = sub.nodes;
+            const removed = sub.edges.filter(e => idSet.has(e.source) || idSet.has(e.target));
             sub.nodes = sub.nodes.filter(n => !idSet.has(n.id));
             sub.edges = sub.edges.filter(e => !idSet.has(e.source) && !idSet.has(e.target));
+            sub.nodes = noteParameterWires(sub.nodes, removed, [], before);
             return;
           }
         }
@@ -789,6 +824,12 @@ export const useGraphStore = create<GraphState>()(
 
     setSubgraph: (subgraphId, nodes, edges) => {
       set((state) => {
+        const old = state.subgraphs[subgraphId];
+        if (old) {
+          const kept = new Set(edges.map(e => e.id));
+          const had  = new Set(old.edges.map(e => e.id));
+          nodes = noteParameterWires(nodes, old.edges.filter(e => !kept.has(e.id)), edges.filter(e => !had.has(e.id)), old.nodes);
+        }
         state.subgraphs[subgraphId] = { nodes, edges };
       });
     },
@@ -828,8 +869,9 @@ export const useGraphStore = create<GraphState>()(
         for (const node of sub.nodes) {
           if (node.data.kind === 'output' || (node.data as { _modulePortId?: string })._modulePortId) continue;
           if (feedsFunctionInput(node.id, sub.nodes, sub.edges)) continue;
+          const leftEmpty = (node.data as { _leftEmpty?: string[] })._leftEmpty ?? [];
           for (const port of node.data.ports.filter(p => p.direction === 'input')) {
-            if (!fed.has(`${node.id}__${port.id}`)) gaps.push({ node, port });
+            if (!fed.has(`${node.id}__${port.id}`) && !leftEmpty.includes(port.id)) gaps.push({ node, port });
           }
         }
         if (gaps.length > 0) {
