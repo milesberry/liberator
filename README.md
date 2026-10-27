@@ -26,7 +26,7 @@ Nodes are organised into categories in the left-hand palette. Hover over any nod
 | **Control** | `case [ ] of` (list pattern match), List Comprehension, Lambda (λ), `if/then/else`, Apply (`$`), `let … in` |
 | **Logic** | `&&` `\|\|` `not` |
 | **Lists** | `head` `tail` `cons (:)` `x:xs` (uncons) `null` `length` `++` `xs ++ [x]` (append item) `reverse` `take` `drop` `elem` `last` `init` |
-| **Higher-Order** | `map` `filter` `foldr` `foldl` `zipWith` |
+| **Higher-Order** | `map` `filter` `foldr` `foldl` `zipWith` `compose (.)` |
 | **Utilities** | `sum` `product` `maximum` `minimum` `range [1..n]` `zip`, Comment |
 | **Tuples** | `pair` `fst` `snd` |
 | **Strings** | `show` `strConcat` `concat` `words` `unwords` `lines` `unlines` `strLength` `strReverse` `ord` `chr` `strToChars` `charsToStr` |

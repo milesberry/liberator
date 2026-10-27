@@ -25,7 +25,7 @@ export type ListOp =
   | 'head' | 'tail' | 'cons' | 'uncons' | 'null' | 'length' | '++' | 'reverse'
   | 'take' | 'drop' | 'elem' | 'last' | 'init' | 'snoc';
 
-export type HofOp = 'map' | 'filter' | 'foldr' | 'foldl' | 'foldl1' | 'foldr1' | 'zipWith';
+export type HofOp = 'map' | 'filter' | 'foldr' | 'foldl' | 'foldl1' | 'foldr1' | 'zipWith' | 'compose';
 
 // ─── Node data variants ────────────────────────────────────────────────────
 

@@ -60,6 +60,7 @@ const SUMMARIES: Record<string, string> = {
   'hof:foldr':   'Combines a list into one value, working from the right, starting from z.',
   'hof:foldl':   'Combines a list into one value, working from the left, starting from z.',
   'hof:zipWith': 'Combines two lists item by item using a function.',
+  'hof:compose': 'Joins two functions into one: f . g does g first, then f.',
 
   // Utilities
   'listop:sum':     'Adds up all the numbers in a list.',

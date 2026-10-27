@@ -356,6 +356,15 @@ const hofNodes: NodeDefinition[] = [
       out('result', 'result', TList(c)),
     ];
   }),
+  // f . g: g first, then f, as in maths' f ∘ g
+  hofNode('compose', 'compose (.)', '(.) :: (b → c) → (a → b) → (a → c)', (id) => {
+    const a = freshVar('a', id), b = freshVar('b', id), c = freshVar('c', id);
+    return [
+      inp('fn',  'f', TFun(b, c)),
+      inp('fn2', 'g', TFun(a, b)),
+      out('result', 'f . g', TFun(a, c)),
+    ];
+  }),
 ];
 
 // ─── Utility nodes (list aggregates + range) ──────────────────────────────

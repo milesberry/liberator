@@ -41,6 +41,7 @@ const INFIX_OPS: Record<string, InfixInfo> = {
   '++':   { sym: '++',     prec: 5, rightAssoc: true },
   'cons': { sym: ':',      prec: 5, rightAssoc: true },
   'elem': { sym: '`elem`', prec: 4 },
+  'compose': { sym: '.',  prec: 9, rightAssoc: true },
 };
 
 // Builtins that render as prefix operator sections when partially applied
@@ -190,17 +191,30 @@ function ppExpr(expr: ExprTree, prec: number, letrecNames: Set<string>): string 
       const name = expr.name;
       // Operators become sections: (+), (*), etc.
       if (OPERATOR_SYMS.has(name)) return `(${name})`;
+      if (name === 'compose') return '(.)';
       return CUSTOM_BUILTINS[name]?.exportName ?? name;
     }
 
     case 'Lam': {
       // Collapse nested lambdas: \x y z -> body
-      const params: string[] = [];
+      const raw: string[] = [];
       let cur: ExprTree = expr;
       while (cur.tag === 'Lam') {
-        params.push(sanitiseVar(cur.param));
+        raw.push(cur.param);
         cur = cur.body;
       }
+      // A node with every input left empty is just its function:
+      // \p0 -> show p0 is show, and \p0 p1 -> p0 + p1 is (+)
+      if (raw.every(p => p.startsWith('__p'))) {
+        const args: ExprTree[] = [];
+        let head: ExprTree = cur;
+        while (head.tag === 'App') { args.unshift(head.arg); head = head.fn; }
+        if (head.tag === 'Builtin' && args.length === raw.length
+            && args.every((a, i) => a.tag === 'Var' && a.name === raw[i])) {
+          return ppExpr(head, prec, letrecNames);
+        }
+      }
+      const params = raw.map(sanitiseVar);
       const body = ppExpr(cur, 0, letrecNames);
       const s = `\\${params.join(' ')} -> ${body}`;
       return prec > 0 ? `(${s})` : s;
@@ -261,7 +275,10 @@ function ppExpr(expr: ExprTree, prec: number, letrecNames: Set<string>): string 
       }
 
       // ── Regular application ──────────────────────────────────────────────
-      const fn  = ppExpr(expr.fn,  9,  letrecNames);
+      // An infix function, such as f . g, needs brackets: (f . g) x
+      const fnIsInfix = expr.fn.tag === 'App' && expr.fn.fn.tag === 'App'
+        && expr.fn.fn.fn.tag === 'Builtin' && expr.fn.fn.fn.name in INFIX_OPS;
+      const fn  = ppExpr(expr.fn,  fnIsInfix ? 10 : 9, letrecNames);
       const arg = ppExpr(expr.arg, 10, letrecNames);
       const s = `${fn} ${arg}`;
       return prec >= 10 ? `(${s})` : s;

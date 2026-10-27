@@ -61,10 +61,11 @@ export function analyseGraph(
     const port = d.ports.find(p => p.id === portId);
     if (!port) return TUnknown;
 
-    // Only compute partial-app type for result ports on multi-input nodes
+    // One-input nodes count too, as the evaluator treats them: negate with
+    // its input empty is the function negate, ready for map or compose
     if (portId === 'result' && (d.kind === 'primop' || d.kind === 'hof' || d.kind === 'listop')) {
       const inputPorts = d.ports.filter(p => p.direction === 'input');
-      if (inputPorts.length > 1) {
+      if (inputPorts.length > 0) {
         const connected = connectedInputs.get(nodeId) ?? new Set<string>();
         return applySubst(subst, partialAppOutputType(inputPorts, port.type, connected));
       }

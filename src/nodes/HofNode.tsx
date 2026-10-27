@@ -4,7 +4,7 @@ import type { LibNode, HofNodeData } from '../types/nodes';
 
 const HOF_SYMBOLS: Record<string, string> = {
   map: 'map', filter: 'filter', foldr: 'foldr', foldl: 'foldl', zipWith: 'zipWith',
-  foldl1: 'foldl1', foldr1: 'foldr1',
+  foldl1: 'foldl1', foldr1: 'foldr1', compose: '∘',
 };
 
 export function HofNode({ data, selected }: NodeProps<LibNode>) {

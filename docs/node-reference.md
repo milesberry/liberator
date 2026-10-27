@@ -127,6 +127,7 @@ These nodes take a **function** as an input (orange wire). Make one by leaving a
 | **foldr** | Combines the items into one value, starting from **z** and working from the right. | `foldr (+) 0 [1,2,3]` is `1 + (2 + (3 + 0))`, which is `6` |
 | **foldl** | The same, but working from the left. | `foldl (-) 10 [1,2]` is `(10 - 1) - 2`, which is `7` |
 | **zipWith** | Combines two lists item by item using **f**. | `zipWith (+) [1,2] [10,20]` is `[11,22]` |
+| **compose (.)** | Joins two functions into one. `f . g` does **g** first, then **f**, like f ∘ g in maths. Its output is a function, so wire it into map or filter, or into Apply ($) to use it on a value. | `((+1) . (*2)) 5` is `11` |
 
 **foldr or foldl?** For `+` and `*` the answer is the same either way. For `-`, or for building a list, the order matters.
 
