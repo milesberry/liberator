@@ -551,7 +551,11 @@ The red warning on the `*` wire disappears at this point: until `*` **y** is con
 
 > **Renaming versus deleting.** Renaming a parameter takes effect immediately. Deleting
 > one doesn't — click **Apply** afterwards so the function and its Call nodes catch up.
-> To give a function an extra input, click **+ Parameter** in the breadcrumb bar.
+> To give a function an extra input, either click **+ Parameter** in the breadcrumb bar,
+> or delete the value you want to replace (say, a typed-in `2`) and click **Apply**: any
+> input left empty inside the function becomes a new parameter, just as it does when you
+> make a function. (An operator left half-filled on purpose to go into `map` or `filter`,
+> such as `> 3`, is left alone.)
 
 > **My Functions.** Once `power` exists, it is listed as `power b n` under **My Functions**
 > at the top of the palette. Drag it onto the canvas, or inside another function, to call

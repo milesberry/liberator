@@ -67,6 +67,18 @@ export function parameterAnchors(nodes: LibNode[]): LibNode[] {
     .sort((a, b) => a.position.y - b.position.y || a.position.x - b.position.x);
 }
 
+// A node with an empty input whose result is wired into a function input
+// (map's f, filter's p, …) is a deliberate partial application, such as
+// (> 3): its gap is not a missing value, so it must not become a parameter
+function feedsFunctionInput(nodeId: string, nodes: LibNode[], edges: LibEdge[]): boolean {
+  return edges.some(e => {
+    if (e.source !== nodeId) return false;
+    const target = nodes.find(n => n.id === e.target);
+    const portId = e.targetHandle?.split('__')[1];
+    return target?.data.ports.find(p => p.id === portId)?.type.tag === 'Fun';
+  });
+}
+
 function syncModuleNodeInState(state: GraphState, subgraphId: string): void {
   const sub = state.subgraphs[subgraphId];
   if (!sub) return;
@@ -236,6 +248,9 @@ interface GraphState {
   setSubgraph: (subgraphId: string, nodes: LibNode[], edges: LibEdge[]) => void;
   getSubgraph: (subgraphId: string) => SubgraphState | undefined;
   syncModuleNode: (subgraphId: string) => void;
+  // The breadcrumb's Apply: empty inputs inside the function become new
+  // Parameters, then its ports are synced. Returns the new parameters' names.
+  applyFunction: (subgraphId: string) => string[];
   // Show a function's definition, from a Function or Call node. Steps back out
   // if it's already open further up the breadcrumb, rather than nesting it again.
   openFunction: (subgraphId: string) => void;
@@ -593,6 +608,7 @@ export const useGraphStore = create<GraphState>()(
 
         // Case A: dangling inner input ports (nothing connected to them at all)
         for (const node of innerNodes) {
+          if (feedsFunctionInput(node.id, state.nodes as LibNode[], state.edges)) continue;
           for (const port of node.data.ports.filter(p => p.direction === 'input')) {
             const tgtHandle = `${node.id}__${port.id}`;
             if (!innerTargetHandles.has(tgtHandle) && !crossInTargetHandles.has(tgtHandle)) {
@@ -794,6 +810,56 @@ export const useGraphStore = create<GraphState>()(
 
     syncModuleNode: (subgraphId) => {
       set((state) => { syncModuleNodeInState(state, subgraphId); });
+    },
+
+    applyFunction: (subgraphId) => {
+      const added: string[] = [];
+      set((state) => {
+        const sub = state.subgraphs[subgraphId];
+        if (!sub) return;
+        const fed = new Set(sub.edges.map(e => e.targetHandle));
+        const gaps: { node: LibNode; port: Port }[] = [];
+        for (const node of sub.nodes) {
+          if (node.data.kind === 'output' || (node.data as { _modulePortId?: string })._modulePortId) continue;
+          if (feedsFunctionInput(node.id, sub.nodes, sub.edges)) continue;
+          for (const port of node.data.ports.filter(p => p.direction === 'input')) {
+            if (!fed.has(`${node.id}__${port.id}`)) gaps.push({ node, port });
+          }
+        }
+        if (gaps.length > 0) {
+          pushHistory(state);
+          const anchors = parameterAnchors(sub.nodes);
+          const labels = new Set(anchors.map(n => n.data.ports[0]?.label));
+          const last = anchors[anchors.length - 1];
+          let x = last ? last.position.x : Math.min(...sub.nodes.map(n => n.position.x)) - 240;
+          let y = last ? last.position.y + 80 : Math.min(...sub.nodes.map(n => n.position.y));
+          // Gaps nearer the top come first, as with Make a Function
+          gaps.sort((a, b) => a.node.position.y - b.node.position.y || a.node.position.x - b.node.position.x);
+          for (const { node, port } of gaps) {
+            let label = port.label;
+            for (let i = 2; labels.has(label); i++) label = `${port.label}${i}`;
+            labels.add(label);
+            added.push(label);
+            const id = newId();
+            sub.nodes.push({
+              id, type: 'value', position: { x, y },
+              data: {
+                kind: 'value', valueType: 'Int', literal: '__module_input__',
+                ports: [{ id: 'result', label, direction: 'output', type: TVar(`p_${id}`), connected: false }],
+                _modulePortId: `in_${newId()}`,
+              } as any,
+            } as LibNode);
+            sub.edges.push({
+              id: newId(), type: 'lib',
+              source: id, sourceHandle: `${id}__result`,
+              target: node.id, targetHandle: `${node.id}__${port.id}`,
+            } as LibEdge);
+            y += 80;
+          }
+        }
+        syncModuleNodeInState(state, subgraphId);
+      });
+      return added;
     },
 
     openFunction: (subgraphId) => {
