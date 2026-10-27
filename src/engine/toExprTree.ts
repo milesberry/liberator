@@ -7,6 +7,7 @@ import type { LibEdge } from '../types/edges';
 import type { HaskellValue } from '../types/values';
 import { VInt, VFloat, VBool, VString, VList, VError } from '../types/values';
 import type { SubgraphState } from '../store/graphStore';
+import { TInt, TFloat, TBool, TString, TList, TTuple, TUnknown, typesEqual, type HaskellType } from '../types/haskell';
 
 // ─── Port label → Haskell identifier ──────────────────────────────────────
 // Converts a human-readable port label ("xs", "my list", "arg0") into a valid
@@ -64,6 +65,31 @@ function app2(builtinName: string, a: ExprTree, b: ExprTree): ExprTree {
 }
 
 // What's wrong with a value node's literal, if anything (shown on the node)
+// The type of a typed-in list, read from its items: ["a","b"] is [String].
+// Mixed whole and decimal numbers are Float, as in Haskell; [] could be a
+// list of anything.
+export function listLiteralType(literal: string): HaskellType {
+  const v = parseLiteral('List', literal);
+  return v.tag === 'VList' ? valueType(v) : TList(TUnknown);
+}
+
+function valueType(v: HaskellValue): HaskellType {
+  switch (v.tag) {
+    case 'VInt':    return TInt;
+    case 'VFloat':  return TFloat;
+    case 'VBool':   return TBool;
+    case 'VString': return TString;
+    case 'VTuple':  return TTuple(v.elements.map(valueType));
+    case 'VList': {
+      const elems = v.elements.map(valueType);
+      if (elems.length === 0) return TList(TUnknown);
+      if (elems.some(t => t.tag === 'Float') && elems.every(t => t.tag === 'Int' || t.tag === 'Float')) return TList(TFloat);
+      return elems.every(t => typesEqual(t, elems[0])) ? TList(elems[0]) : TList(TUnknown);
+    }
+    default:        return TUnknown;
+  }
+}
+
 export function literalProblem(valueType: string, literal: string): string | undefined {
   const v = parseLiteral(valueType, literal);
   return v.tag === 'VError' ? v.message : undefined;

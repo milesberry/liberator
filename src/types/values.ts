@@ -34,7 +34,7 @@ export const VBottom: HaskellValue = { tag: 'VBottom' };
 export function showValue(v: HaskellValue): string {
   switch (v.tag) {
     case 'VInt':    return v.value.toString();
-    case 'VFloat':  return v.value.toString();
+    case 'VFloat':  return Number.isInteger(v.value) ? v.value.toFixed(1) : v.value.toString();  // 4.0, as Haskell shows it
     case 'VBool':   return v.value ? 'True' : 'False';
     case 'VString': return `"${v.value}"`;
     case 'VList':   return `[${v.elements.map(showValue).join(', ')}]`;

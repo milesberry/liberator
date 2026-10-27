@@ -20,16 +20,27 @@ const numOp = (
   return (a.tag === 'VFloat' || b.tag === 'VFloat') ? VFloat(result) : VInt(result);
 }));
 
-const cmpOp = (op: (a: number | string | boolean, b: number | string | boolean) => boolean) =>
+// Haskell's compare: negative, zero or positive, or null for values with no
+// order (functions). Lists and tuples compare item by item, as in a dictionary.
+function compareValues(a: HaskellValue, b: HaskellValue): number | null {
+  if (isNumeric(a) && isNumeric(b)) return a.value - b.value;
+  if (a.tag === 'VBool' && b.tag === 'VBool') return Number(a.value) - Number(b.value);
+  if (a.tag === 'VString' && b.tag === 'VString') return a.value < b.value ? -1 : a.value > b.value ? 1 : 0;
+  if ((a.tag === 'VList' && b.tag === 'VList') || (a.tag === 'VTuple' && b.tag === 'VTuple')) {
+    for (let i = 0; i < Math.min(a.elements.length, b.elements.length); i++) {
+      const c = compareValues(a.elements[i], b.elements[i]);
+      if (c !== 0) return c;
+    }
+    return a.elements.length - b.elements.length;
+  }
+  return null;
+}
+
+const cmpOp = (op: (c: number) => boolean) =>
   VFun(a => VFun(b => {
-    const av = a.tag === 'VInt' || a.tag === 'VFloat' ? a.value
-             : a.tag === 'VBool' ? a.value
-             : a.tag === 'VString' ? a.value : null;
-    const bv = b.tag === 'VInt' || b.tag === 'VFloat' ? b.value
-             : b.tag === 'VBool' ? b.value
-             : b.tag === 'VString' ? b.value : null;
-    if (av === null || bv === null) return VError(`Cannot compare ${showValue(a)} and ${showValue(b)}`);
-    return VBool(op(av, bv));
+    const c = compareValues(a, b);
+    if (c === null) return VError(`Cannot compare ${showValue(a)} and ${showValue(b)}`);
+    return VBool(op(c));
   }));
 
 // Deep equality for == and /=
@@ -77,10 +88,10 @@ export const builtins: Record<string, HaskellValue> = {
   // Comparison
   '==':  VFun(a => VFun(b => VBool(deepEq(a, b)))),
   '/=':  VFun(a => VFun(b => VBool(!deepEq(a, b)))),
-  '<':   cmpOp((a, b) => a < b),
-  '>':   cmpOp((a, b) => a > b),
-  '<=':  cmpOp((a, b) => a <= b),
-  '>=':  cmpOp((a, b) => a >= b),
+  '<':   cmpOp(c => c < 0),
+  '>':   cmpOp(c => c > 0),
+  '<=':  cmpOp(c => c <= 0),
+  '>=':  cmpOp(c => c >= 0),
 
   // Logic
   '&&':  VFun(a => VFun(b => {
@@ -242,17 +253,23 @@ export const builtins: Record<string, HaskellValue> = {
   }),
   'maximum': VFun(xs => {
     if (xs.tag !== 'VList' || xs.elements.length === 0) return VError('maximum: empty list');
-    return xs.elements.reduce((a, b) => {
-      if (!isNumeric(a) || !isNumeric(b)) return VError('maximum: non-numeric');
-      return a.value >= b.value ? a : b;
-    });
+    let best = xs.elements[0];
+    for (const x of xs.elements.slice(1)) {
+      const c = compareValues(best, x);
+      if (c === null) return VError('maximum: these values have no order');
+      if (!(c >= 0)) best = x;
+    }
+    return best;
   }),
   'minimum': VFun(xs => {
     if (xs.tag !== 'VList' || xs.elements.length === 0) return VError('minimum: empty list');
-    return xs.elements.reduce((a, b) => {
-      if (!isNumeric(a) || !isNumeric(b)) return VError('minimum: non-numeric');
-      return a.value <= b.value ? a : b;
-    });
+    let best = xs.elements[0];
+    for (const x of xs.elements.slice(1)) {
+      const c = compareValues(best, x);
+      if (c === null) return VError('minimum: these values have no order');
+      if (!(c <= 0)) best = x;
+    }
+    return best;
   }),
 
   // range n = [1..n]

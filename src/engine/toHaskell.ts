@@ -261,8 +261,14 @@ function ppExpr(expr: ExprTree, prec: number, letrecNames: Map<string, string>):
         if (info) {
           const leftPrec  = info.rightAssoc ? info.prec + 1 : info.prec;
           const rightPrec = info.rightAssoc ? info.prec     : info.prec + 1;
-          const left  = ppExpr(expr.fn.arg, leftPrec,  letrecNames);
-          const right = ppExpr(expr.arg,    rightPrec, letrecNames);
+          let left  = ppExpr(expr.fn.arg, leftPrec,  letrecNames);
+          let right = ppExpr(expr.arg,    rightPrec, letrecNames);
+          // Liberator's / takes Ints too (7 / 2 is 3.5); Haskell's needs
+          // fractional numbers, so anything but a typed-in number is converted
+          if (opName === '/') {
+            if (expr.fn.arg.tag !== 'Lit') left  = `realToFrac ${ppExpr(expr.fn.arg, 10, letrecNames)}`;
+            if (expr.arg.tag    !== 'Lit') right = `realToFrac ${ppExpr(expr.arg,    10, letrecNames)}`;
+          }
           const s = `${left} ${info.sym} ${right}`;
           return prec > info.prec ? `(${s})` : s;
         }

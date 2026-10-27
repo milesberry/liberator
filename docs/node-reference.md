@@ -135,9 +135,9 @@ These nodes take a **function** as an input (orange wire). Make one by leaving a
 
 | Node | What it does | Example |
 |---|---|---|
-| **sum** | Adds up a list of numbers. | `sum [1,2,3]` is `6` |
+| **sum** | Adds up a list of numbers, whole or decimal. | `sum [1,2,3]` is `6`; `sum [1.5,2.5]` is `4.0` |
 | **product** | Multiplies a list of numbers together. | `product [1,2,3,4]` is `24` |
-| **maximum** | The largest item. | `maximum [3,9,2]` is `9` |
+| **maximum** | The largest item. Works on anything that can be put in order, such as words. | `maximum [3,9,2]` is `9`; `maximum ["fig","pear"]` is `"pear"` |
 | **minimum** | The smallest item. | `minimum [3,9,2]` is `2` |
 | **range [1..n]** | The whole numbers from 1 to **n**. | `range 5` is `[1,2,3,4,5]` |
 | **zip** | Pairs up two lists item by item. | `zip [1,2] ["a","b"]` is `[(1,"a"),(2,"b")]` |
@@ -157,7 +157,7 @@ In Haskell a `String` is a list of characters. Liberator keeps text as its own t
 
 | Node | What it does | Example |
 |---|---|---|
-| **show** | Turns any value into text. | `show 42` is `"42"` |
+| **show** | Turns any value except a function into text. | `show 42` is `"42"` |
 | **strConcat (++)** | Joins two strings. | `"ab" ++ "cd"` is `"abcd"` |
 | **concat** | Joins a list of strings. | `concat ["ab","cd"]` is `"abcd"` |
 | **words** | Splits text into words at the spaces. | `words "to be"` is `["to","be"]` |
@@ -204,4 +204,15 @@ Your Functions' names are adjusted where Haskell needs it. A function's name mus
 
 **Recursion has limits.** To stop a runaway program freezing the browser, Liberator gives up after 50,000 steps and shows **⊥** ("bottom", the symbol for a computation that never finishes). A recursive call that is the very *last* thing a function does, as in `lpf n d = … else lpf n (d + 1)`, can run thousands of times. One whose result still has work waiting on it, as in `n * fact (n - 1)`, uses more room for each call, so `fact 3000` hits the limit even though it would finish eventually. That difference, called tail recursion, is worth discussing with students.
 
-Liberator also checks types more loosely than Haskell. It doesn't yet know that `+` needs numbers, so some mistakes only show up when you click **Run**, not as a red wire.
+**Type classes.** Like Haskell, Liberator knows which kinds of value each operation works on, and turns a wire red when it carries the wrong kind:
+
+| Class | Which types | Needed by |
+|---|---|---|
+| `Num` (numbers) | Int, Float | `+` `-` `*` `/` negate abs sum product |
+| `Eq` (can be tested for equality) | anything except a function | `==` `/=` elem |
+| `Ord` (can be put in order) | anything except a function; lists and pairs go in dictionary order | `<` `>` `<=` `>=` maximum minimum |
+| `Show` (can be turned into text) | anything except a function | show |
+
+So `True + 1` gets a red wire saying `+` needs numbers, and so does comparing two functions with `==`. `sum` and `product` work on lists of Floats as well as Ints.
+
+**Division is more lenient than Haskell's.** In Liberator, `/` takes whole numbers too, so `7 / 2` is `3.5` and the mean of a list is `sum xs / length xs`. Haskell's `/` only takes decimal numbers, so the export converts anything that isn't a typed-in number with `realToFrac`, which turns an Int (or a Float) into a decimal: `realToFrac (sum xs) / realToFrac (length xs)`.

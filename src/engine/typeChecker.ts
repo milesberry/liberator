@@ -12,6 +12,7 @@ import {
   type HaskellType,
 } from '../types/haskell';
 import type { Port } from '../types/nodes';
+import { listLiteralType } from './toExprTree';
 
 // ─── Result ───────────────────────────────────────────────────────────────
 
@@ -60,6 +61,11 @@ export function analyseGraph(
     const d = node.data;
     const port = d.ports.find(p => p.id === portId);
     if (!port) return TUnknown;
+
+    // A typed-in list's items say what it's a list of
+    if (d.kind === 'value' && d.valueType === 'List' && !d._modulePortId) {
+      return listLiteralType(d.literal);
+    }
 
     // One-input nodes count too, as the evaluator treats them: negate with
     // its input empty is the function negate, ready for map or compose
@@ -122,6 +128,53 @@ export function analyseGraph(
       errorShort: msg?.short,
     };
   });
+
+  // Pass 3: type classes. A wire can match its port's type and still break a
+  // node's class: True wired into + makes a = Bool, but + needs a number.
+  for (const node of nodes) {
+    const need = classConstraint(node);
+    if (!need) continue;
+    const declared = node.data.ports.find(p => p.id === need.port)?.type;
+    if (declared?.tag !== 'TypeVar') continue;
+    const resolved = applySubst(subst, declared);
+    if (satisfies(need.cls, resolved)) continue;
+    // Blame the wires in that bring a type outside the class. A wire that
+    // only clashes with them (1 beside True, both into +) is fine, so clear it.
+    const portType = (portId: string | undefined) => node.data.ports.find(p => p.id === portId)?.type;
+    const atVar = (t: HaskellType | undefined, carried: HaskellType) => {
+      const s = t && unify(t, carried, new Map());
+      return s ? applySubst(s, declared) : TUnknown;
+    };
+    const inward = edges.flatMap((e, i) => {
+      const t = portType(e.targetHandle?.split('__')[1]);
+      return e.target === node.id && typeMentions(t, declared.name) ? [{ c: checkedEdges[i], t }] : [];
+    });
+    const culprits = inward.filter(({ c, t }) => !satisfies(need.cls, atVar(t, c.sourceType)));
+    for (const { c } of culprits) {
+      const msg = classMessage(node, need.cls, resolved, c.sourceType, true);
+      c.compatible = false;
+      c.errorMessage = msg.full;
+      c.errorShort = msg.short;
+    }
+    if (culprits.length > 0) {
+      for (const { c } of inward) {
+        if (culprits.some(x => x.c === c) || c.compatible) continue;
+        c.compatible = true;
+        c.errorMessage = c.errorShort = undefined;
+      }
+      continue;
+    }
+    // None of the wires in is to blame, so the wires out forced the bad type
+    edges.forEach((e, i) => {
+      const c = checkedEdges[i];
+      if (e.source !== node.id || !c.compatible) return;
+      if (!typeMentions(portType(e.sourceHandle?.split('__')[1]), declared.name)) return;
+      const msg = classMessage(node, need.cls, resolved, c.sourceType, false);
+      c.compatible = false;
+      c.errorMessage = msg.full;
+      c.errorShort = msg.short;
+    });
+  }
 
   const portTypes = new Map<string, HaskellType>();
   for (const node of nodes) {
@@ -233,6 +286,87 @@ export function analyseGraph(
       full:  `${where} needs ${showTypeSimple(tgt)}, but this wire carries ${showTypeSimple(src)}.`,
       short: `Needs ${showTypeSimple(tgt)}, got ${showTypeSimple(src)}`,
     };
+  }
+}
+
+// ─── Type classes ─────────────────────────────────────────────────────────
+// Only the four a student meets first: Num for arithmetic, Eq for ==, Ord for
+// < and maximum, Show for show. Each node's class sits on the type variable of
+// one port, as in (+) :: Num a => a → a → a. Division stays lenient: Int / Int
+// gives a Float, though Haskell would want fromIntegral.
+
+type TypeClass = 'Num' | 'Eq' | 'Ord' | 'Show';
+
+const CLASS_CONSTRAINTS: Record<string, { cls: TypeClass; port: string }> = {
+  'primop:+': { cls: 'Num', port: 'arg0' },
+  'primop:-': { cls: 'Num', port: 'arg0' },
+  'primop:*': { cls: 'Num', port: 'arg0' },
+  'primop:/': { cls: 'Num', port: 'arg0' },
+  'primop:negate': { cls: 'Num', port: 'arg0' },
+  'primop:abs':    { cls: 'Num', port: 'arg0' },
+  'primop:==': { cls: 'Eq',  port: 'arg0' },
+  'primop:/=': { cls: 'Eq',  port: 'arg0' },
+  'primop:<':  { cls: 'Ord', port: 'arg0' },
+  'primop:>':  { cls: 'Ord', port: 'arg0' },
+  'primop:<=': { cls: 'Ord', port: 'arg0' },
+  'primop:>=': { cls: 'Ord', port: 'arg0' },
+  'listop:elem':    { cls: 'Eq',  port: 'x' },
+  'listop:maximum': { cls: 'Ord', port: 'result' },
+  'listop:minimum': { cls: 'Ord', port: 'result' },
+  'listop:sum':     { cls: 'Num', port: 'result' },
+  'listop:product': { cls: 'Num', port: 'result' },
+  'hof:show':       { cls: 'Show', port: 'arg0' },
+};
+
+function classConstraint(node: LibNode): { cls: TypeClass; port: string } | undefined {
+  const d = node.data as { kind: string; op?: string };
+  return d.op ? CLASS_CONSTRAINTS[`${d.kind}:${d.op}`] : undefined;
+}
+
+// Is the type in the class? A type not yet known might be, so it passes.
+// Int, Float, Bool, String, and lists and pairs of them, can all be compared
+// and shown; functions can't. Only Int and Float are numbers.
+function satisfies(cls: TypeClass, t: HaskellType): boolean {
+  switch (t.tag) {
+    case 'TypeVar': case 'Unknown': return true;
+    case 'Fun':   return false;
+    case 'Int': case 'Float': return true;
+    case 'Bool': case 'String': return cls !== 'Num';
+    case 'List':  return cls !== 'Num' && satisfies(cls, t.elem);
+    case 'Tuple': return cls !== 'Num' && t.elems.every(e => satisfies(cls, e));
+  }
+}
+
+function typeMentions(t: HaskellType | undefined, name: string): boolean {
+  if (!t) return false;
+  switch (t.tag) {
+    case 'TypeVar': return t.name === name;
+    case 'List':    return typeMentions(t.elem, name);
+    case 'Fun':     return typeMentions(t.from, name) || typeMentions(t.to, name);
+    case 'Tuple':   return t.elems.some(e => typeMentions(e, name));
+    default:        return false;
+  }
+}
+
+function classMessage(node: LibNode, cls: TypeClass, bad: HaskellType, carried: HaskellType,
+                      inward: boolean): { full: string; short: string } {
+  const name = nodeName(node);
+  const wire = inward ? `this wire carries ${showTypeSimple(carried)}` : `this wire makes it work on ${showTypeSimple(bad)}`;
+  const hint = carried.tag === 'Fun' && inward
+    ? ' If you meant to use the function\'s answer, connect its empty inputs first.' : '';
+  switch (cls) {
+    case 'Num':
+      return { full: `${name} works with numbers (Int or Float), but ${wire}.${hint}`,
+               short: `${name} needs numbers, got ${showTypeSimple(bad)}` };
+    case 'Eq':
+      return { full: `${name} can't compare functions: there's no way to tell whether two functions are equal, but ${wire}.${hint}`,
+               short: `Can't compare functions with ${name}` };
+    case 'Ord':
+      return { full: `${name} can't put functions in order, but ${wire}.${hint}`,
+               short: `Functions have no order for ${name}` };
+    case 'Show':
+      return { full: `${name} can't turn a function into text, but ${wire}.${hint}`,
+               short: `${name} can't show a function` };
   }
 }
 

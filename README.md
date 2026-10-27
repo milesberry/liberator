@@ -96,7 +96,7 @@ Run also works out the value on every wire (`wireSourceExprs` in `toExprTree.ts`
 
 ### Type system
 
-Wires are coloured by the type of value they carry: whole numbers (blue), decimals (light blue), booleans (green), strings (yellow), lists (purple), tuples (cyan) and functions (orange, and thicker). A type checker (`src/engine/typeChecker.ts`) infers types through the graph by unification, including the function types made by leaving inputs empty. A wire that doesn't fit turns red, with a short explanation on the wire and a fuller one, with a hint, when you hover or select it. There are no type classes yet, so `+` accepts any type until the graph is run.
+Wires are coloured by the type of value they carry: whole numbers (blue), decimals (light blue), booleans (green), strings (yellow), lists (purple), tuples (cyan) and functions (orange, and thicker). A type checker (`src/engine/typeChecker.ts`) infers types through the graph by unification, including the function types made by leaving inputs empty. A wire that doesn't fit turns red, with a short explanation on the wire and a fuller one, with a hint, when you hover or select it. It also checks the type classes `Num`, `Eq`, `Ord` and `Show`, so `True + 1` or comparing two functions gets a red wire before the graph is run; a typed-in list's type comes from its items. Division is the one deliberate leniency: `/` accepts Ints (`7 / 2` is `3.5`), and the export adds `realToFrac` so GHC agrees.
 
 ### Modules (named functions)
 
