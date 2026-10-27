@@ -221,10 +221,23 @@ function syncModuleNodeInState(state: GraphState, subgraphId: string): void {
     if (cd.targetName !== moduleName) return;
     cd.ports = freshPorts.map(p => ({ ...p, connected: false }));
   }
+  // A wire to a Call's port that the function no longer has goes nowhere
+  const callPortGone = (graph: { nodes: LibNode[] }) => (e: LibEdge): boolean => {
+    const end = (nodeId: string, handle: string | null | undefined) => {
+      const node = graph.nodes.find(n => n.id === nodeId);
+      if (node?.data.kind !== 'call' || (node.data as CallNodeData).targetName !== moduleName) return false;
+      const portId = handle?.split('__')[1];
+      return !!portId && !freshPorts.some(p => p.id === portId);
+    };
+    return end(e.source, e.sourceHandle) || end(e.target, e.targetHandle);
+  };
 
   for (const node of state.nodes)  refreshCallNode(node);
-  for (const sub of Object.values(state.subgraphs))
+  state.edges = state.edges.filter(e => !callPortGone(state)(e)) as typeof state.edges;
+  for (const sub of Object.values(state.subgraphs)) {
     for (const node of sub.nodes) refreshCallNode(node);
+    sub.edges = sub.edges.filter(e => !callPortGone(sub)(e));
+  }
 }
 
 // Helper: push current state onto the undo stack and clear redo.
@@ -864,10 +877,19 @@ export const useGraphStore = create<GraphState>()(
       set((state) => {
         const sub = state.subgraphs[subgraphId];
         if (!sub) return;
+        // Bring the function's own Calls up to date first: after a Parameter is
+        // deleted, a recursive Call still has an input for it until this runs
+        syncModuleNodeInState(state, subgraphId);
+        const name = [...state.nodes, ...Object.values(state.subgraphs).flatMap(sg => sg.nodes)]
+          .find(n => n.data.kind === 'module' && (n.data as ModuleNodeData).subgraphId === subgraphId)
+          ?.data as ModuleNodeData | undefined;
         const fed = new Set(sub.edges.map(e => e.targetHandle));
         const gaps: { node: LibNode; port: Port }[] = [];
         for (const node of sub.nodes) {
           if (node.data.kind === 'output' || (node.data as { _modulePortId?: string })._modulePortId) continue;
+          // An empty input on the function's own (recursive) Call isn't a new
+          // parameter: it is one already, and filling it would add another every time
+          if (node.data.kind === 'call' && (node.data as CallNodeData).targetName === name?.name) continue;
           if (feedsFunctionInput(node.id, sub.nodes, sub.edges)) continue;
           const leftEmpty = (node.data as { _leftEmpty?: string[] })._leftEmpty ?? [];
           for (const port of node.data.ports.filter(p => p.direction === 'input')) {
