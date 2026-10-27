@@ -67,8 +67,8 @@ const EDGE_TYPES: EdgeTypes = {
 
 // ─── Breadcrumb navigation bar ─────────────────────────────────────────────
 function BreadcrumbNav() {
-  const { navStack, popSubgraph, syncModuleNode, addParameter, activeSubgraphId, nodes: rootNodes, subgraphs } = useGraphStore();
-  const [applyFlash, setApplyFlash] = useState(false);
+  const { navStack, popSubgraph, applyFunction, addParameter, activeSubgraphId, nodes: rootNodes, subgraphs } = useGraphStore();
+  const [applyFlash, setApplyFlash] = useState<string | null>(null);
   if (navStack.length === 0) return null;
 
   function nameFor(subgraphId: string): string {
@@ -80,9 +80,10 @@ function BreadcrumbNav() {
   }
 
   const handleApply = () => {
-    if (activeSubgraphId) syncModuleNode(activeSubgraphId);
-    setApplyFlash(true);
-    setTimeout(() => setApplyFlash(false), 1200);
+    const added = activeSubgraphId ? applyFunction(activeSubgraphId) : [];
+    setApplyFlash(added.length === 0 ? 'Applied!'
+      : `Applied! New parameter${added.length > 1 ? 's' : ''}: ${added.join(', ')}`);
+    setTimeout(() => setApplyFlash(null), added.length === 0 ? 1200 : 3000);
   };
 
   return (
@@ -136,15 +137,15 @@ function BreadcrumbNav() {
       {/* Apply — sync module ports + refresh Call nodes without navigating out */}
       <button
         onClick={handleApply}
-        title="Sync this module's ports and update all Call nodes that reference it — no need to navigate out"
-        className="flex items-center gap-1 transition-colors text-[10px] rounded px-2 py-0.5 mr-1"
+        title="Update this function everywhere it is used. Any input left empty becomes a new parameter."
+        className="flex items-center gap-1 whitespace-nowrap transition-colors text-[10px] rounded px-2 py-0.5 mr-1"
         style={{
           color: applyFlash ? '#f59e0b' : 'var(--text-muted)',
           border: `1px solid ${applyFlash ? '#f59e0b' : 'var(--border-subtle)'}`,
         }}
       >
         <RefreshCw size={10} className={applyFlash ? 'text-amber-400' : ''} />
-        {applyFlash ? 'Applied!' : 'Apply'}
+        {applyFlash ?? 'Apply'}
       </button>
       <button
         onClick={popSubgraph}
