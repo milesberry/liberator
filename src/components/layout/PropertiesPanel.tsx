@@ -1,7 +1,8 @@
 // ─── Properties Panel ──────────────────────────────────────────────────────
 // Right sidebar. Shows info about the selected node or edge.
 
-import { Trash2, ArrowUp, ArrowDown } from 'lucide-react';
+import { useState } from 'react';
+import { Trash2, ArrowUp, ArrowDown, PackageOpen } from 'lucide-react';
 import { useUIStore }   from '../../store/uiStore';
 import { useGraphStore, parameterAnchors } from '../../store/graphStore';
 import { useTypeStore }  from '../../store/typeStore';
@@ -188,6 +189,7 @@ export function PropertiesPanel() {
   const portTypes      = useTypeStore(s => s.portTypes);
   const moveParameter  = useGraphStore(s => s.moveParameter);
   const renameFunction = useGraphStore(s => s.renameFunction);
+  const unwrapCall     = useGraphStore(s => s.unwrapCall);
   const rootNodes      = useGraphStore(s => s.nodes);
   const subgraphs      = useGraphStore(s => s.subgraphs);
 
@@ -224,6 +226,13 @@ export function PropertiesPanel() {
               className="w-full text-xs font-mono rounded px-2 py-1 outline-none focus:border-blue-500"
               style={{ background: 'var(--bg-node-input)', color: 'var(--text-primary)', border: '1px solid var(--border-input)' }}
             />
+            <UnwrapButton
+              key={selectedNodeId}
+              label="Unwrap this Function"
+              title="Put the nodes inside this Function back on the canvas, wired up as they were: the opposite of Make a Function."
+              onUnwrap={() => unwrapCall(selectedNodeId!)}
+              onDone={() => setSelectedNodeId(null)}
+            />
           </div>
         );
       case 'call': {
@@ -245,6 +254,15 @@ export function PropertiesPanel() {
               <option value="">(choose a function)</option>
               {names.map(name => <option key={name} value={name}>{name}</option>)}
             </select>
+            {names.includes(data.targetName) && (
+              <UnwrapButton
+                key={selectedNodeId}
+                label="Unwrap this Call"
+                title={`Replace this Call with what ${data.targetName} does, with its inputs wired in where the parameters were. The Function itself stays as it is.`}
+                onUnwrap={() => unwrapCall(selectedNodeId!)}
+                onDone={() => setSelectedNodeId(null)}
+              />
+            )}
           </div>
         );
       }
@@ -428,5 +446,26 @@ export function PropertiesPanel() {
         </div>
       )}
     </div>
+  );
+}
+
+// Unwrap a Call or Function in place; if it can't be done, say why underneath
+function UnwrapButton({ label, title, onUnwrap, onDone }: {
+  label: string; title: string; onUnwrap: () => string | null; onDone: () => void;
+}) {
+  const [problem, setProblem] = useState<string | null>(null);
+  return (
+    <>
+      <button
+        onClick={() => { const p = onUnwrap(); setProblem(p); if (p === null) onDone(); }}
+        title={title}
+        className="flex items-center justify-center gap-1.5 w-full mt-2 py-1 rounded text-xs transition-colors hover:text-amber-500 hover:border-amber-500"
+        style={{ color: 'var(--text-muted)', border: '1px solid var(--border-subtle)' }}
+      >
+        <PackageOpen size={12} />
+        {label}
+      </button>
+      {problem && <p className="text-[11px] mt-1 text-amber-500">{problem}</p>}
+    </>
   );
 }

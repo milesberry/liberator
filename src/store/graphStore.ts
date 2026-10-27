@@ -258,6 +258,12 @@ interface GraphState {
   renameFunction: (nodeId: string, name: string) => void;
   // Inside a function: add a new Parameter node, or move one up or down the order
   addParameter: () => void;
+  // Replace a Call node with a copy of its Function's body, the arguments wired
+  // in where the Parameters were: one step of substitution. A Call inside the
+  // body (recursion) stays a Call. On the Function node itself, this undoes
+  // Make a Function, so it's refused while anything else still calls it.
+  // Returns null when done, or the reason it couldn't be.
+  unwrapCall: (nodeId: string) => string | null;
   moveParameter: (nodeId: string, direction: -1 | 1) => void;
 
   // Nav: which graph is shown on canvas ('' = root, else subgraphId)
@@ -918,6 +924,109 @@ export const useGraphStore = create<GraphState>()(
         } as LibNode);
         syncModuleNodeInState(state, state.activeSubgraphId);
       });
+    },
+
+    unwrapCall: (nodeId) => {
+      let problem: string | null = 'There is nothing to unwrap here.';
+      set((state) => {
+        const graph = state.activeSubgraphId ? state.subgraphs[state.activeSubgraphId] : state;
+        if (!graph) return;
+        const call = graph.nodes.find(n => n.id === nodeId);
+        if (!call || (call.data.kind !== 'call' && call.data.kind !== 'module')) return;
+        const isDefinition = call.data.kind === 'module';
+        const allNodes = [...state.nodes, ...Object.values(state.subgraphs).flatMap(sg => sg.nodes)];
+        const name = isDefinition ? (call.data as ModuleNodeData).name : (call.data as CallNodeData).targetName;
+        const fn = isDefinition ? call : allNodes
+          .find(n => n.data.kind === 'module' && (n.data as ModuleNodeData).name === name);
+        const subgraphId = fn && (fn.data as ModuleNodeData).subgraphId;
+        const body = subgraphId ? state.subgraphs[subgraphId] : undefined;
+        if (!body) return;
+        if (isDefinition && allNodes.some(n => n.data.kind === 'call' && (n.data as CallNodeData).targetName === name)) {
+          problem = `${name} is still used by a Call node${body.nodes.some(n => n.data.kind === 'call' && (n.data as CallNodeData).targetName === name)
+            ? ' inside it (it is recursive)' : ''}, so it can't be unwrapped. You can unwrap a Call to it instead.`;
+          return;
+        }
+        // A function passed whole (to foldr, say) has no arguments to substitute:
+        // its body spread out with gaps would not be the same single function
+        const ins = call.data.ports.filter(p => p.direction === 'input');
+        const missing = ins.filter(p => !graph.edges.some(e => e.target === nodeId && e.targetHandle === handleId(nodeId, p.id)));
+        if (missing.length > 0) {
+          problem = `Wire something into every input first (${missing.map(p => p.label).join(', ')}).` +
+            ` A function passed whole to another, as with map or foldr, can't be unwrapped.`;
+          return;
+        }
+        pushHistory(state);
+        const original = current(body) as { nodes: LibNode[]; edges: LibEdge[] };
+        const portOf = (anchor: LibNode) => (anchor.data as { _modulePortId?: string })._modulePortId;
+        const isAnchor = (n: LibNode) => !!portOf(n);
+
+        // What each Parameter stands for: the wire arriving at the Call's matching input
+        const argFor = new Map<string, LibEdge>();            // parameter anchor id → outer edge
+        for (const a of original.nodes.filter(n => n.data.kind === 'value' && isAnchor(n))) {
+          const arg = graph.edges.find(e => e.target === nodeId && e.targetHandle === handleId(nodeId, portOf(a)!));
+          if (arg) argFor.set(a.id, arg);
+        }
+
+        // Copy the body below everything else, lined up with the Call: a body is
+        // usually much bigger than its Call, so put where the Call was it would
+        // land on top of the nodes around it. It's left selected, to drag into place.
+        const inner = original.nodes.filter(n => !isAnchor(n));
+        const others = graph.nodes.filter(n => n.id !== nodeId);
+        const below = others.length ? Math.max(...others.map(n => n.position.y)) + 160 : call.position.y;
+        const dx = call.position.x - Math.min(...inner.map(n => n.position.x));
+        const dy = below - Math.min(...inner.map(n => n.position.y));
+        for (const n of graph.nodes) n.selected = false;
+        const fresh = new Map<string, string>();
+        for (const n of inner) {
+          const id = newId();
+          fresh.set(n.id, id);
+          let data = JSON.parse(JSON.stringify(n.data)) as LibNode['data'];
+          let type = n.type;
+          // A Function defined inside the body is still there: use it, don't
+          // redefine it. (Unwrapping the definition itself moves it out instead.)
+          if (data.kind === 'module' && !isDefinition) { data = callDataFor(data as ModuleNodeData); type = 'call'; }
+          data.ports = data.ports.map(p => ({ ...p, connected: false, type: renameTypeVars(p.type, n.id, id) }));
+          graph.nodes.push({ id, type, position: { x: n.position.x + dx, y: n.position.y + dy }, data, selected: true } as LibNode);
+        }
+
+        const wire = (source: string, sourceHandle: string, target: string, targetHandle: string) => {
+          graph.edges.push({ id: newId(), source, target, sourceHandle, targetHandle, type: 'lib', data: defaultEdgeData() });
+        };
+        // Where a value inside the body comes from, seen from outside: a copied
+        // node, or (for a Parameter) the argument wired into the Call
+        const outerSource = (e: LibEdge): { source: string; handle: string } | undefined => {
+          const copy = fresh.get(e.source);
+          if (copy) return { source: copy, handle: handleId(copy, (e.sourceHandle ?? `${e.source}__result`).split('__')[1]) };
+          const arg = argFor.get(e.source);
+          return arg && { source: arg.source, handle: arg.sourceHandle ?? `${arg.source}__result` };
+        };
+
+        // Wires inside the body, with Parameters replaced by the arguments
+        for (const e of original.edges) {
+          const target = fresh.get(e.target);
+          if (!target) continue;
+          const from = outerSource(e);
+          if (from) wire(from.source, from.handle, target, handleId(target, (e.targetHandle ?? `${e.target}__value`).split('__')[1]));
+        }
+        // Wires leaving the Call now leave whatever fed the function's output
+        for (const out of original.nodes.filter(n => n.data.kind === 'output' && isAnchor(n))) {
+          const feed = original.edges.find(e => e.target === out.id);
+          const from = feed && outerSource(feed);
+          if (!from) continue;
+          for (const e of graph.edges.filter(e => e.source === nodeId && e.sourceHandle === handleId(nodeId, portOf(out)!))) {
+            wire(from.source, from.handle, e.target, e.targetHandle ?? `${e.target}__value`);
+          }
+        }
+
+        graph.nodes = graph.nodes.filter(n => n.id !== nodeId);
+        graph.edges = graph.edges.filter(e => e.source !== nodeId && e.target !== nodeId);
+        // Mark the ports that now have wires
+        const used = new Set(graph.edges.flatMap(e => [e.sourceHandle, e.targetHandle]));
+        for (const n of graph.nodes) for (const p of n.data.ports) p.connected = used.has(handleId(n.id, p.id));
+        if (isDefinition) delete state.subgraphs[subgraphId!];
+        problem = null;
+      });
+      return problem;
     },
 
     moveParameter: (nodeId, direction) => {

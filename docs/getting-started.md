@@ -561,6 +561,14 @@ The red warning on the `*` wire disappears at this point: until `*` **y** is con
 > at the top of the palette. Drag it onto the canvas, or inside another function, to call
 > it — the node arrives with its `b` and `n` ports ready to wire, with no name to type.
 
+> **Unwrapping.** Select a Call to `power` with both inputs wired and click **Unwrap this
+> Call** in Properties. The Call is replaced by a copy of `power`'s body, with your values
+> wired in where `b` and `n` were: this is substitution, the step you take when you
+> evaluate a function by hand. Because `power` is recursive, the copy contains another Call
+> to `power`, which you can unwrap again to see the next step. (Run gives the same answer
+> each time.) **Unwrap this Function** on the Function itself puts its nodes back on the
+> canvas, provided nothing else calls it.
+
 ---
 
 ## 9. Quicksort
