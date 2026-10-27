@@ -29,6 +29,14 @@ of node types on the left.
 | **Output panel** | Shows results after you click Run |
 | **Haskell panel** | Shows the Haskell source for your current graph (toggle with the `</>` button) |
 
+### What's a node?
+
+Each box on the canvas is a **node**: a value (like `5`), an operation (like `+` or `map`),
+or a function you've made. The lines between them are **wires**, which carry values from one
+node to the next, like pipes between the stages of a function machine. A whole program is
+nodes wired together. (In Haskell terms, a node is an expression and a wire passes it on as
+an argument.)
+
 ### Adding nodes
 
 Drag any node type from the left palette onto the canvas. You can also press **Ctrl+K** to
@@ -321,13 +329,13 @@ sum' [] = 0
 sum' xs = head xs + sum' (tail xs)
 ```
 
-Recursive functions are built by **wrapping** nodes into a named module. As soon as the
+Recursive functions are built by turning nodes into a named Function with **Make a Function**. As soon as the
 module chip appears, any Call node already bearing its name receives its ports automatically —
 so you only need **one visit inside** to tidy up and finish wiring. The Call node then takes on
 the function's own amber look, with a small call icon to show it is a *use* of the function
 rather than its definition; double-click it to open the definition.
 
-### Build, wire, and wrap
+### Build, wire, and make the function
 
 **Step 1.** Drag seven nodes:
 
@@ -352,7 +360,7 @@ rather than its definition; double-click it to open the definition.
 
 Leave null, head, and tail **xs** inputs unconnected.
 
-**Step 3.** Select all seven nodes and click **Wrap as function**, name it `sum'`.
+**Step 3.** Select all seven nodes and click **Make a Function from 7 nodes**, name it `sum'`.
 
 The module chip appears. Inside it there are four teal **Parameter** nodes, one for each
 unconnected input: `xs`, `xs2` and `xs3` (for null, head and tail) and `y` (for the
@@ -391,9 +399,11 @@ input port and the Call node refreshes.
 
 Click **Run** → `15`
 
-> **Why four parameters?** Every unconnected input port becomes a separate parameter when
-> wrapping — there is no automatic merging. The `case [ ] of` version (section 8b) avoids
-> this because all list work flows through a single node with one `xs` input.
+> **Why four parameters?** Every *empty* input becomes a separate parameter when you make a
+> Function, because Liberator can't tell which empty inputs you meant to be the same. (A value
+> wired in from one node outside the selection is different: it becomes one parameter, however
+> many inputs it feeds.) The `case [ ] of` version (section 8b) avoids this because all list
+> work flows through a single node with one `xs` input.
 
 
 
@@ -409,7 +419,7 @@ sum' [] = 0
 sum' (x:xs) = x + sum' xs
 ```
 
-### Build, wire, and wrap
+### Build, wire, and make the function
 
 **Step 1.** Drag five nodes onto the canvas:
 
@@ -429,7 +439,7 @@ sum' (x:xs) = x + sum' xs
 
 Leave **case xs** and **Add b** unconnected — both will be wired inside the module.
 
-**Step 3.** Select all five nodes and click **Wrap as function** at the bottom of the canvas.
+**Step 3.** Select all five nodes and click **Make a Function from 5 nodes** at the bottom of the canvas.
 Name it `sum'`.
 
 The module chip appears with two **Parameter** nodes inside (`xs` and `y`). The `y`
@@ -477,7 +487,7 @@ power b n = if n == 0 then 1 else b * power b (n - 1)
 This recursive function has two parameters, a base `b` and an exponent `n`. Liberator has
 no built-in power operator, so this is a good one to build yourself.
 
-### Build, wire, and wrap
+### Build, wire, and make the function
 
 **Step 1.** Drag these nodes onto the canvas, with **Multiply above the others**.
 Parameters are numbered from the top of the canvas down, so putting Multiply highest gives
@@ -506,7 +516,7 @@ them later: see Step 7.)
 
 Leave the Call node unwired for now — its ports appear once the function exists.
 
-**Step 3.** Select all nine nodes, click **Wrap 9 nodes as Function**, and name it `power`.
+**Step 3.** Select all nine nodes, click **Make a Function from 9 nodes**, and name it `power`.
 
 ### Inside — rename, tidy, Apply, wire
 

@@ -157,7 +157,8 @@ function BreadcrumbNav() {
   );
 }
 
-// ─── Wrap-as-function floating button ──────────────────────────────────────
+// ─── Make-a-Function floating button ───────────────────────────────────────
+// (Internally this is "wrapping" the selection into a module.)
 function WrapModuleButton({ selectedIds }: { selectedIds: string[] }) {
   const [name, setName] = useState('');
   const [showInput, setShowInput] = useState(false);
@@ -179,7 +180,7 @@ function WrapModuleButton({ selectedIds }: { selectedIds: string[] }) {
           <Package size={12} className="text-amber-400" />
           <input
             autoFocus
-            placeholder="Function name…"
+            placeholder="Name the function…"
             value={name}
             onChange={e => setName(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter') doWrap(); if (e.key === 'Escape') setShowInput(false); }}
@@ -187,18 +188,19 @@ function WrapModuleButton({ selectedIds }: { selectedIds: string[] }) {
           />
           <button onClick={doWrap}
             className="text-amber-400 hover:text-white text-xs border border-amber-600 rounded px-2 py-0.5">
-            Wrap
+            Make
           </button>
           <button onClick={() => setShowInput(false)} className="text-slate-500 hover:text-white text-xs">✕</button>
         </div>
       ) : (
         <button
           onClick={() => setShowInput(true)}
+          title="Turn the selected nodes into a named Function you can use again. Any input left empty, or wired in from a node you didn't select, becomes one of its parameters." 
           className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-700 hover:bg-amber-600 text-white text-xs
                      font-medium rounded-lg shadow-xl transition-colors border border-amber-500"
         >
           <Package size={12} />
-          Wrap {selectedIds.length === 1 ? 'node' : `${selectedIds.length} nodes`} as Function
+          Make a Function from {selectedIds.length === 1 ? 'this node' : `${selectedIds.length} nodes`}
         </button>
       )}
     </div>
