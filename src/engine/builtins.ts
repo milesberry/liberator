@@ -210,6 +210,14 @@ export const builtins: Record<string, HaskellValue> = {
     }
     return VList(results);
   }))),
+  // (.) :: (b -> c) -> (a -> b) -> a -> c
+  'compose': VFun(f => VFun(g => {
+    if (f.tag !== 'VFun' || g.tag !== 'VFun') return VError('compose: f and g must both be functions');
+    return VFun(x => {
+      const y = g.fn(x);
+      return y.tag === 'VError' ? y : f.fn(y);
+    });
+  })),
 
   // Extra utilities useful for Project Euler
   'sum':     VFun(xs => {
