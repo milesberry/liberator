@@ -16,6 +16,7 @@ import type { SubgraphState } from '../store/graphStore';
 import type { ExprTree } from './toExprTree';
 import { buildOutputExprs } from './toExprTree';
 import type { HaskellValue } from '../types/values';
+import { builtins } from './builtins';
 
 // ─── Infix operators ───────────────────────────────────────────────────────
 // Maps builtin name → { display symbol, precedence }
@@ -176,7 +177,7 @@ function collectBuiltins(expr: ExprTree, acc: Set<string> = new Set()): Set<stri
 // ─── Main pretty-printer ──────────────────────────────────────────────────
 // prec: minimum precedence at call site — wrap in parens if our prec is lower.
 
-function ppExpr(expr: ExprTree, prec: number, letrecNames: Set<string>): string {
+function ppExpr(expr: ExprTree, prec: number, letrecNames: Map<string, string>): string {
   switch (expr.tag) {
     case 'Lit':
       return ppLit(expr.value);
@@ -232,11 +233,19 @@ function ppExpr(expr: ExprTree, prec: number, letrecNames: Set<string>): string 
       // ── Detect let-desugaring: App(Lam(x, body), val) ──────────────────
       if (expr.fn.tag === 'Lam' && !letrecNames.has('')) {
         const lam = expr.fn;
-        const varName = sanitiseVar(lam.param);
-        const val  = ppExpr(expr.arg,  0, letrecNames);
-        const body = ppExpr(lam.body, 0, letrecNames);
-        const s = `let ${varName} = ${val} in ${body}`;
-        return prec > 1 ? `(${s})` : s;
+        // (\x -> body) x is just body: an Apply node giving a Lambda its own x
+        if (expr.arg.tag === 'Var' && expr.arg.name === lam.param) {
+          return ppExpr(lam.body, prec, letrecNames);
+        }
+        // Haskell's let is recursive, so let x = x + 1 would loop: keep the
+        // application as it is when the value mentions the name
+        if (!mentions(expr.arg, lam.param)) {
+          const varName = sanitiseVar(lam.param);
+          const val  = ppExpr(expr.arg,  0, letrecNames);
+          const body = ppExpr(lam.body, 0, letrecNames);
+          const s = `let ${varName} = ${val} in ${body}`;
+          return prec > 1 ? `(${s})` : s;
+        }
       }
 
       // ── x : [] reads better as the one-item list [x] ─────────────────────
@@ -268,7 +277,7 @@ function ppExpr(expr: ExprTree, prec: number, letrecNames: Set<string>): string 
 
       // ── Letrec at call site: just use the function name ─────────────────
       if (expr.fn.tag === 'Letrec') {
-        const fnName = expr.fn.name;
+        const fnName = letrecNames.get(expr.fn.name) ?? expr.fn.name;
         const arg = ppExpr(expr.arg, 10, letrecNames);
         const s = `${fnName} ${arg}`;
         return prec >= 10 ? `(${s})` : s;
@@ -286,7 +295,7 @@ function ppExpr(expr: ExprTree, prec: number, letrecNames: Set<string>): string 
 
     case 'Letrec': {
       // At an inline Letrec site (after top-level extraction), just use the name
-      return expr.name;
+      return letrecNames.get(expr.name) ?? expr.name;
     }
 
     case 'PartialApp': {
@@ -319,12 +328,45 @@ function ppExpr(expr: ExprTree, prec: number, letrecNames: Set<string>): string 
   }
 }
 
+// ─── Function names ───────────────────────────────────────────────────────
+// A student may call a Function Factorial, sum or my-sum. In Haskell a
+// function's name starts with a lower-case letter, isn't a keyword, and
+// mustn't clash with a Prelude function or a helper: sum becomes sum'.
+
+const RESERVED = [
+  'case', 'class', 'data', 'default', 'deriving', 'do', 'else', 'foreign', 'if', 'import', 'in',
+  'infix', 'infixl', 'infixr', 'instance', 'let', 'module', 'newtype', 'of', 'then', 'type', 'where',
+  'main', 'print', 'undefined',
+];
+
+function haskellName(name: string, taken: Set<string>): string {
+  let s = name.replace(/[^A-Za-z0-9_']/g, '_');
+  if (/^[A-Z]/.test(s)) s = s[0].toLowerCase() + s.slice(1);
+  else if (!/^[a-z_]/.test(s)) s = 'f' + s;
+  if (s === '_') s = 'f';
+  while (taken.has(s)) s += "'";
+  return s;
+}
+
+// Does the variable appear anywhere in the expression?
+function mentions(expr: ExprTree, name: string): boolean {
+  switch (expr.tag) {
+    case 'Var':        return expr.name === name;
+    case 'App':        return mentions(expr.fn, name) || mentions(expr.arg, name);
+    case 'Lam':        return expr.param !== name && mentions(expr.body, name);
+    case 'If':         return mentions(expr.cond, name) || mentions(expr.thenE, name) || mentions(expr.elseE, name);
+    case 'PartialApp': return mentions(expr.fn, name) || expr.args.some(a => a !== null && mentions(a, name));
+    case 'CaseList':   return mentions(expr.scrutinee, name) || mentions(expr.nilCase, name) || mentions(expr.consCase, name);
+    default:           return false;
+  }
+}
+
 // ─── Top-level function def from Letrec + body Lam chain ──────────────────
 // factorial = \n -> if n == 0 then 1 else n * factorial (n-1)
 // becomes:
 // factorial n = if n == 0 then 1 else n * factorial (n-1)
 
-function ppTopLevelDef(name: string, body: ExprTree, letrecNames: Set<string>): string {
+function ppTopLevelDef(name: string, body: ExprTree, letrecNames: Map<string, string>): string {
   const params: string[] = [];
   let cur = body;
   while (cur.tag === 'Lam') {
@@ -332,7 +374,8 @@ function ppTopLevelDef(name: string, body: ExprTree, letrecNames: Set<string>): 
     cur = cur.body;
   }
   const bodyStr = ppExpr(cur, 0, letrecNames);
-  const lhs = params.length > 0 ? `${name} ${params.join(' ')}` : name;
+  const hsName = letrecNames.get(name) ?? name;
+  const lhs = params.length > 0 ? `${hsName} ${params.join(' ')}` : hsName;
   return `${lhs} = ${bodyStr}`;
 }
 
@@ -355,7 +398,15 @@ export function graphToHaskell(
   for (const out of outputs) {
     allLetrecs.push(...collectLetrecs(out.expr, seenLetrec));
   }
-  const letrecNames = new Set(allLetrecs.map(l => l.name));
+  // Each Function's name, made a valid Haskell name that clashes with nothing
+  const letrecNames = new Map<string, string>();
+  const taken = new Set([...RESERVED, ...Object.keys(builtins),
+    ...Object.values(CUSTOM_BUILTINS).flatMap(c => c.exportName ?? [])]);
+  for (const { name } of allLetrecs) {
+    const hsName = haskellName(name, taken);
+    taken.add(hsName);
+    letrecNames.set(name, hsName);
+  }
 
   // ── Collect all used builtins ──────────────────────────────────────────
   const usedBuiltins = new Set<string>();
