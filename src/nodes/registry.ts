@@ -380,10 +380,14 @@ function utilNode(op: UtilOp, label: string, desc: string, makePorts: (id: strin
 }
 
 const utilityNodes: NodeDefinition[] = [
-  utilNode('sum', 'sum', 'sum :: Num a => [a] → a', () =>
-    [inp('list', 'xs', TList(TInt)), out('result', 'result', TInt)]),
-  utilNode('product', 'product', 'product :: Num a => [a] → a', () =>
-    [inp('list', 'xs', TList(TInt)), out('result', 'result', TInt)]),
+  utilNode('sum', 'sum', 'sum :: Num a => [a] → a', (id) => {
+    const a = freshVar('a', id);
+    return [inp('list', 'xs', TList(a)), out('result', 'result', a)];
+  }),
+  utilNode('product', 'product', 'product :: Num a => [a] → a', (id) => {
+    const a = freshVar('a', id);
+    return [inp('list', 'xs', TList(a)), out('result', 'result', a)];
+  }),
   utilNode('maximum', 'maximum', 'maximum :: Ord a => [a] → a', (id) => {
     const a = freshVar('a', id);
     return [inp('list', 'xs', TList(a)), out('result', 'result', a)];

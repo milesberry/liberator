@@ -63,7 +63,7 @@ const SUMMARIES: Record<string, string> = {
   'hof:compose': 'Joins two functions into one: f . g does g first, then f.',
 
   // Utilities
-  'listop:sum':     'Adds up all the numbers in a list.',
+  'listop:sum':     'Adds up all the numbers in a list, whole or decimal.',
   'listop:product': 'Multiplies together all the numbers in a list.',
   'listop:maximum': 'The largest item in a list.',
   'listop:minimum': 'The smallest item in a list.',
@@ -77,7 +77,7 @@ const SUMMARIES: Record<string, string> = {
   'hof:snd':  'The second value of a pair.',
 
   // Strings
-  'hof:show':       'Turns any value into text: 42 becomes "42".',
+  'hof:show':       'Turns any value except a function into text: 42 becomes "42".',
   'hof:strConcat':  'Joins two strings: "ab" ++ "cd" is "abcd".',
   'hof:concat':     'Joins a list of strings into one string.',
   'hof:words':      'Splits a string into words at the spaces.',
