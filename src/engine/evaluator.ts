@@ -9,7 +9,12 @@ import { builtins } from './builtins';
 
 type Env = Map<string, HaskellValue>;
 
-const MAX_STEPS = 50_000;
+const MAX_STEPS = 1_000_000;
+
+// Running out of steps abandons the whole evaluation. Returning ⊥ from the
+// innermost call instead would let builtins such as filter misreport it
+// ("predicate must return Bool"), so it is thrown and caught in evaluateSafely.
+class StepLimit extends Error {}
 
 // A recursive function such as lpf n d, which calls itself as the very last
 // thing it does, would otherwise nest one JavaScript call per step and run out
@@ -20,7 +25,7 @@ const MAX_STEPS = 50_000;
 export function evaluate(expr: ExprTree, env: Env = new Map(), steps = { n: 0 }): HaskellValue {
   for (;;) {
     steps.n++;
-    if (steps.n > MAX_STEPS) return VBottom;
+    if (steps.n > MAX_STEPS) throw new StepLimit();
 
     switch (expr.tag) {
       case 'Lit':
@@ -149,6 +154,7 @@ export function evaluateSafely(expr: ExprTree, env: Env = new Map()): HaskellVal
   try {
     return evaluate(expr, env);
   } catch (e) {
+    if (e instanceof StepLimit) return VBottom;
     if (e instanceof RangeError) {
       return VError('the recursion went too deep for the browser. Each call waits for the next ' +
         'one to finish, and they ran out of room; try a smaller input');
