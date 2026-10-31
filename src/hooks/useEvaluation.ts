@@ -91,9 +91,9 @@ export function useEvaluation() {
         const targets = buildOutputExprs(nodes, edges, subgraphs);
         const results = targets.map(({ nodeId, label, expr }) => {
           const val = evaluateSafely(expr);
-          const isError = val.tag === 'VError';
+          const isError = val.tag === 'VError' || val.tag === 'VBottom';
           const value = val.tag === 'VBottom'
-            ? '⊥ (step limit exceeded — possible infinite recursion)'
+            ? '⊥ (no answer after a million steps: the recursion may never stop, or the calculation is too big)'
             : showValue(val);
           return { nodeId, label, value, isError };
         });
